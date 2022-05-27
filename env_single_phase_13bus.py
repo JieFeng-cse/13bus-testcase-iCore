@@ -81,7 +81,7 @@ class IEEE13bus(gym.Env):
                 reward_sep[i] = float(-20*LA.norm(p_action[i],1) -100*LA.norm([np.clip(self.vmin-self.state[i], 0, np.inf)],1)) 
             elif self.state[i]>1.05:
                 reward_sep[i] = float(-10*LA.norm(p_action[i],1) -115*LA.norm([np.clip(self.state[i]-self.vmax, 0, np.inf)],1)) 
-        reward = np.sum(reward_sep)
+        # reward = np.sum(reward_sep)
         # state-transition dynamics
         for i in range(len(self.injection_bus)):
             self.network.sgen.at[i, 'q_mvar'] = action[i] 

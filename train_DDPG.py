@@ -25,6 +25,7 @@ from environment_single_phase import create_56bus, VoltageCtrl_nonlinear
 from env_single_phase_13bus import IEEE13bus, create_13bus
 from env_single_phase_123bus import IEEE123bus, create_123bus
 from env_three_phase_eu import Three_Phase_EU, create_eu_lv
+from IEEE_13_3p import IEEE13bus3p, create_13bus3p
 from safeDDPG import ValueNetwork, SafePolicyNetwork, DDPG, ReplayBuffer, ReplayBufferPI, PolicyNetwork, SafePolicy3phase, StablePolicy3phase
 
 use_cuda = torch.cuda.is_available()
@@ -67,6 +68,7 @@ Create Agent list and replay buffer
 vlr = 2e-4
 plr = 1e-4
 ph_num = 1
+max_ac = 0.3
 if args.env_name == '56bus':
     pp_net = create_56bus()
     injection_bus = np.array([18, 21, 30, 45, 53])-1  
@@ -78,24 +80,34 @@ if args.env_name == '13bus':
     env = IEEE13bus(pp_net, injection_bus)
     num_agent = 3
 if args.env_name == '123bus':
+    max_ac = 0.8
     pp_net = create_123bus()
     injection_bus = np.array([10, 11, 16, 20, 33, 36, 48, 59, 66, 75, 83, 92, 104, 61])-1
     env = IEEE123bus(pp_net, injection_bus)
     num_agent = 14
     if args.algorithm == 'safe-ddpg':
-        plr = 2e-4
+        plr = 1.5e-4
 if args.env_name == 'eu-lv':
+    max_ac = 0.005
     pp_net = create_eu_lv()
-    injection_bus = np.array([25])#,70,32, 41
+    injection_bus = np.array([171,133,378])
     env = Three_Phase_EU(pp_net, injection_bus)
     num_agent = len(injection_bus)
     ph_num=3
+if args.env_name == '13bus3p':
+    pp_net = create_13bus3p()
+    max_ac = 0.5
+    injection_bus = np.array([675,633,680])
+    env = IEEE13bus3p(pp_net,injection_bus)
+    num_agent = len(injection_bus)
+    ph_num=3
+
 
 
 obs_dim = env.obs_dim
 action_dim = env.action_dim
 hidden_dim = 100
-if args.env_name == 'eu-lv':
+if ph_num == 3:
     type_name = 'three-phase'
 else:
     type_name = 'single-phase'
@@ -105,16 +117,16 @@ replay_buffer_list = []
 
 for i in range(num_agent):
     value_net  = ValueNetwork(obs_dim=obs_dim, action_dim=action_dim, hidden_dim=hidden_dim).to(device)
-    if args.algorithm == 'safe-ddpg' and not args.env_name=='eu-lv':
+    if args.algorithm == 'safe-ddpg' and not ph_num == 3:
         policy_net = SafePolicyNetwork(env=env, obs_dim=obs_dim, action_dim=action_dim, hidden_dim=hidden_dim).to(device)
         target_policy_net = SafePolicyNetwork(env=env, obs_dim=obs_dim, action_dim=action_dim, hidden_dim=hidden_dim).to(device)
-    elif args.algorithm == 'safe-ddpg' and args.env_name=='eu-lv' and args.safe_type == 'loss':
+    elif args.algorithm == 'safe-ddpg' and ph_num == 3 and args.safe_type == 'loss':
         policy_net = PolicyNetwork(env=env, obs_dim=obs_dim, action_dim=action_dim, hidden_dim=hidden_dim).to(device)
         target_policy_net = PolicyNetwork(env=env, obs_dim=obs_dim, action_dim=action_dim, hidden_dim=hidden_dim).to(device)
-    elif args.algorithm == 'safe-ddpg' and args.env_name=='eu-lv' and args.safe_type == 'three_single':
+    elif args.algorithm == 'safe-ddpg' and ph_num == 3 and args.safe_type == 'three_single':
         policy_net = SafePolicy3phase(env=env, obs_dim=obs_dim, action_dim=action_dim, hidden_dim=hidden_dim).to(device)
         target_policy_net = SafePolicy3phase(env=env, obs_dim=obs_dim, action_dim=action_dim, hidden_dim=hidden_dim).to(device)
-    elif args.algorithm == 'safe-ddpg' and args.env_name=='eu-lv' and args.safe_type == 'dd':
+    elif args.algorithm == 'safe-ddpg' and ph_num == 3 and args.safe_type == 'dd':
         policy_net = StablePolicy3phase(env=env, obs_dim=obs_dim, action_dim=action_dim, hidden_dim=hidden_dim).to(device)
         target_policy_net = StablePolicy3phase(env=env, obs_dim=obs_dim, action_dim=action_dim, hidden_dim=hidden_dim).to(device)
     else:
@@ -146,7 +158,7 @@ else:
 if (FLAG ==0): 
     # load trained policy
     for i in range(num_agent):
-        if args.env_name == 'eu-lv':
+        if ph_num == 3:
             valuenet_dict = torch.load(f'checkpoints/{type_name}/{args.env_name}/{args.algorithm}/{args.safe_type}/value_net_checkpoint_a{i}.pth')
             policynet_dict = torch.load(f'checkpoints/{type_name}/{args.env_name}/{args.algorithm}/{args.safe_type}/policy_net_checkpoint_a{i}.pth')
         else:
@@ -157,33 +169,25 @@ if (FLAG ==0):
 
 elif (FLAG ==1):
     # training episode
-    # for i in range(num_agent):
-    #     if args.env_name == 'eu-lv':
-    #         valuenet_dict = torch.load(f'checkpoints/{type_name}/{args.env_name}/{args.algorithm}/{args.safe_type}/value_net_checkpoint_a{i}.pth')
-    #         policynet_dict = torch.load(f'checkpoints/{type_name}/{args.env_name}/{args.algorithm}/{args.safe_type}/policy_net_checkpoint_a{i}.pth')
-    #     else:
-    #         valuenet_dict = torch.load(f'checkpoints/{type_name}/{args.env_name}/{args.algorithm}/value_net_checkpoint_a{i}.pth')
-    #         policynet_dict = torch.load(f'checkpoints/{type_name}/{args.env_name}/{args.algorithm}/policy_net_checkpoint_a{i}.pth')
-    #     agent_list[i].value_net.load_state_dict(valuenet_dict)
-    #     agent_list[i].policy_net.load_state_dict(policynet_dict)
+
     if args.algorithm == 'safe-ddpg':
-        num_episodes = 200        
+        num_episodes = 600       
     else:
-        num_episodes = 2000 #123 1000
+        num_episodes = 2000 #123 2000
 
     # trajetory length each episode
     num_steps = 30  
     if args.env_name =='123bus':
         num_steps = 60
     if args.env_name =='eu-lv':
-        num_steps = 20
-        num_episodes *= 2
-
+        num_steps = 30
+        # num_episodes *= 2
+    if args.env_name =='13bus3p':
+        num_steps = 30
     batch_size = 256
 
     # if/not plot trained policy every # episodes
     plot = False
-
     rewards = []
     avg_reward_list = []
     for episode in range(num_episodes):
@@ -200,17 +204,17 @@ elif (FLAG ==1):
             for i in range(num_agent):
                 # sample action according to the current policy and exploration noise
                 if args.env_name =='eu-lv':
-                    action_agent = agent_list[i].policy_net.get_action(np.asarray([state[i]])) + np.random.normal(0, 0.005)
+                    action_agent = agent_list[i].policy_net.get_action(np.asarray([state[i]])) + np.random.normal(0, max_ac)/np.sqrt(episode+1)
+                    action_agent = np.clip(action_agent, -max_ac, max_ac) 
                     action_p.append(action_agent)
-                    action_agent = np.clip(action_agent, -0.05, 0.05) 
                 else:
-                    action_agent = agent_list[i].policy_net.get_action(np.asarray([state[i]])) + np.random.normal(0, 1.5)/np.sqrt(episode+1)
-                    action_agent = np.clip(action_agent, -0.8, 0.8) 
+                    action_agent = agent_list[i].policy_net.get_action(np.asarray([state[i]]))  + np.random.normal(0, max_ac)/np.sqrt(episode+1)
+                    action_agent = np.clip(action_agent, -max_ac, max_ac) 
                     action_p.append(action_agent)                    
                 action.append(action_agent)
 
             # PI policy    
-            if args.env_name =='eu-lv':
+            if ph_num == 3:
                 action = last_action - np.asarray(action).reshape(-1,3) #.reshape(-1,3) #if eu, reshape
             else:
                 action = last_action - np.asarray(action)
@@ -221,8 +225,8 @@ elif (FLAG ==1):
             if(np.min(next_state)<0.75): #if voltage violation > 25%, episode ends.
                 break
             else:
-                for i in range(num_agent): # if single phase, state[i], else, state[0,i]
-                    state_buffer = state[i].reshape(ph_num,) #[0.i]
+                for i in range(num_agent): 
+                    state_buffer = state[i].reshape(ph_num,) 
                     action_buffer = action[i].reshape(ph_num,)
                     last_action_buffer = last_action[i].reshape(ph_num,)
                     next_state_buffer = next_state[i].reshape(ph_num, )
@@ -232,7 +236,7 @@ elif (FLAG ==1):
                                                reward_sep[i], next_state_buffer, done) #_sep[i]
 
                     # update both critic and actor network
-                    if args.env_name =='eu-lv' and args.algorithm == 'safe-ddpg' and args.safe_type == 'loss':
+                    if ph_num == 3 and args.algorithm == 'safe-ddpg' and args.safe_type == 'loss':
                         if len(replay_buffer_list[i]) > batch_size:
                             agent_list[i].train_step_3ph(replay_buffer=replay_buffer_list[i], 
                                                     batch_size=batch_size)
@@ -256,7 +260,7 @@ elif (FLAG ==1):
             print("Episode * {} * Avg Reward is ==> {}".format(episode, avg_reward))
         avg_reward_list.append(avg_reward)
     for i in range(num_agent):
-        if args.env_name == 'eu-lv':
+        if ph_num == 3:
             pth_value = f'checkpoints/{type_name}/{args.env_name}/{args.algorithm}/{args.safe_type}/value_net_checkpoint_a{i}.pth'
             pth_policy = f'checkpoints/{type_name}/{args.env_name}/{args.algorithm}/{args.safe_type}/policy_net_checkpoint_a{i}.pth'
         else:
@@ -317,14 +321,24 @@ for i in range(num_agent):
             action_baseline = (np.maximum(state[0]-1.05, 0)-np.maximum(0.95-state[0], 0)).reshape((1,))
     
         action = agent_list[i].policy_net.get_action(np.asarray([state]))
-        action = np.clip(action, -0.8, 0.8) 
+        action = np.clip(action, -max_ac, max_ac) 
         a_array_baseline[j] = -action_baseline[0]
         a_array[j] = -action
-    axs[i].plot(s_array, 5*a_array_baseline, '-.', label = 'Linear')
+    axs[i].plot(s_array, 2*a_array_baseline, '-.', label = 'Linear')
     for k in range(ph_num):        
         axs[i].plot(s_array, a_array[:,k], label = args.algorithm)
         axs[i].legend(loc='lower left')
 plt.show()
+
+# for i in range(num_agent):
+#     if args.env_name == 'eu-lv':
+#         pth_value = f'checkpoints/{type_name}/{args.env_name}/{args.algorithm}/{args.safe_type}/value_net_checkpoint_a{i}.pth'
+#         pth_policy = f'checkpoints/{type_name}/{args.env_name}/{args.algorithm}/{args.safe_type}/policy_net_checkpoint_a{i}.pth'
+#     else:
+#         pth_value = f'checkpoints/{type_name}/{args.env_name}/{args.algorithm}/value_net_checkpoint_a{i}.pth'
+#         pth_policy = f'checkpoints/{type_name}/{args.env_name}/{args.algorithm}/policy_net_checkpoint_a{i}.pth'
+#     torch.save(agent_list[i].value_net.state_dict(), pth_value)
+#     torch.save(agent_list[i].policy_net.state_dict(), pth_policy)
 
 ## test policy
 state = env.reset()
@@ -340,7 +354,7 @@ for step in range(60):
         # sample action according to the current policy and exploration noise
         action_agent = agent_list[i].policy_net.get_action(np.asarray([state[i]]))
         # action_agent = (np.maximum(state[i]-1.05, 0)-np.maximum(0.95-state[i], 0)).reshape((1,))
-        action_agent = np.clip(action_agent, -0.8, 0.8)
+        action_agent = np.clip(action_agent, -max_ac, max_ac)
         action.append(action_agent)
 
     # PI policy    

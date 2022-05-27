@@ -33,8 +33,8 @@ class IEEE123bus(gym.Env):
         self.injection_bus = injection_bus
         self.agentnum = len(injection_bus)
         self.v0 = v0 
-        self.vmax = vmax - 0.01
-        self.vmin = vmin + 0.01
+        self.vmax = vmax #- 0.01
+        self.vmin = vmin #+ 0.01
         
         self.load0_p = np.copy(self.network.load['p_mw'])
         self.load0_q = np.copy(self.network.load['q_mvar'])
@@ -91,14 +91,14 @@ class IEEE123bus(gym.Env):
         # reward = np.sum(reward_sep)         
         for i in range(agent_num):
             if (self.state[i]>1.0 and self.state[i]<1.05):
-                reward_sep[i] = float(-20*LA.norm(p_action[i],1) -200*LA.norm([np.clip(self.state[i]-self.vmax, -np.inf, 0)],1))   
+                reward_sep[i] = float(-0*LA.norm(p_action[i],1) -0*LA.norm([np.clip(self.state[i]-self.vmax, -np.inf, 0)],2)**2)   
             elif (self.state[i]>0.95 and self.state[i]<1.0):
-                reward_sep[i] = float(-20*LA.norm(p_action[i],1) -200*LA.norm([np.clip(self.vmin-self.state[i], -np.inf, 0)],1))   
+                reward_sep[i] = float(-0*LA.norm(p_action[i],1) -0*LA.norm([np.clip(self.vmin-self.state[i], -np.inf, 0)],2)**2)   
             elif self.state[i]<0.95:
-                reward_sep[i] = float(-20*LA.norm(p_action[i],1) -200*LA.norm([np.clip(self.vmin-self.state[i], 0, np.inf)],1)) 
+                reward_sep[i] = float(-0.1*LA.norm(p_action[i],1) -100*LA.norm([np.clip(self.vmin-self.state[i], 0, np.inf)],2)**2) 
             elif self.state[i]>1.05:
-                reward_sep[i] = float(-20*LA.norm(p_action[i],1) -200*LA.norm([np.clip(self.state[i]-self.vmax, 0, np.inf)],1)) 
-        reward = np.sum(reward_sep)        
+                reward_sep[i] = float(-0.1*LA.norm(p_action[i],1) -100*LA.norm([np.clip(self.state[i]-self.vmax, 0, np.inf)],2)**2) 
+        reward = np.sum(reward_sep)        #115
         
         # state-transition dynamics
         for i in range(len(self.injection_bus)):
@@ -148,7 +148,7 @@ class IEEE123bus(gym.Env):
     def reset(self, seed=1): #sample different initial volateg conditions during training
         np.random.seed(seed)
         senario = np.random.choice([0,1])
-        # senario=1
+        # senario=0
         if(senario == 0):#low voltage 
            # Low voltage
             self.network.sgen['p_mw'] = 0.0
@@ -263,7 +263,7 @@ if __name__ == "__main__":
     net = create_123bus()
     # print(net.shunt)
     # exit(0)
-    injection_bus = np.array([10, 11, 16, 20, 33, 36, 48, 59, 66, 75, 83, 92, 104, 61])-1
+    injection_bus = np.array([10, 11, 16, 20, 33, 36, 48, 59, 66, 75, 83, 92, 104, 61])-1 #11, 36, 75,/ 1,5,9
     env = IEEE123bus(net, injection_bus)
     state_list = []
     for i in range(200):

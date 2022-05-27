@@ -34,8 +34,8 @@ class Three_Phase_EU(gym.Env):
         
         done = False 
         #safe-ddpg reward
-        reward = float(-20*LA.norm(p_action)**2-100*LA.norm(np.clip(self.state-self.vmax, 0, np.inf))**2
-                       -100*LA.norm(np.clip(self.vmin-self.state, 0, np.inf))**2)
+        reward = float(-0*LA.norm(p_action)**2-1000*LA.norm(np.clip(self.state-self.vmax, 0, np.inf),1)
+                       -1000*LA.norm(np.clip(self.vmin-self.state, 0, np.inf),1))
         #why in this part originally it is not square?
         # local reward
         agent_num = len(self.injection_bus)
@@ -78,10 +78,28 @@ class Three_Phase_EU(gym.Env):
             self.network.asymmetric_sgen['p_c_mw'] = 0.0
             self.network.asymmetric_sgen['q_c_mvar'] = 0.0
             
+            # for i in range(sgen_num):
             for i in range(sgen_num):
-                self.network.asymmetric_sgen.at[0, 'p_a_mw'] = -np.random.uniform(0.5, 0.75)
-                self.network.asymmetric_sgen.at[0, 'p_b_mw'] = -np.random.uniform(0.5, 0.75)
-                self.network.asymmetric_sgen.at[0, 'p_c_mw'] = -np.random.uniform(0.5, 0.75)
+                self.network.asymmetric_sgen.at[i, 'p_a_mw'] = -np.random.uniform(0.0, 0.08)
+                self.network.asymmetric_sgen.at[i, 'p_b_mw'] = -np.random.uniform(0.0, 0.08)
+                self.network.asymmetric_sgen.at[i, 'p_c_mw'] = -np.random.uniform(0.0, 0.08)  
+            # self.network.asymmetric_sgen.at[0, 'p_a_mw'] = -np.random.uniform(0.05, 0.15)
+            # self.network.asymmetric_sgen.at[0, 'p_b_mw'] = -np.random.uniform(0.05, 0.15)
+            # self.network.asymmetric_sgen.at[0, 'p_c_mw'] = -np.random.uniform(0.05, 0.18)
+
+            # self.network.asymmetric_sgen.at[1, 'p_a_mw'] = -np.random.uniform(0.00, 0.06)
+            # self.network.asymmetric_sgen.at[1, 'p_b_mw'] = -np.random.uniform(0.00, 0.05)
+            # self.network.asymmetric_sgen.at[1, 'p_c_mw'] = -np.random.uniform(0.00, 0.05)
+
+            # self.network.asymmetric_sgen.at[2, 'p_a_mw'] = -np.random.uniform(0.0, 0.05)
+            # self.network.asymmetric_sgen.at[2, 'p_b_mw'] = -np.random.uniform(0.0, 0.05)
+            # self.network.asymmetric_sgen.at[2, 'p_c_mw'] = -np.random.uniform(0.01, 0.05)
+
+            # self.network.asymmetric_sgen.at[3, 'p_a_mw'] = -np.random.uniform(0.0, 0.3)
+            # self.network.asymmetric_sgen.at[3, 'p_b_mw'] = -np.random.uniform(0.0, 0.3)
+            # self.network.asymmetric_sgen.at[3, 'p_c_mw'] = -np.random.uniform(0.0, 0.3)
+
+
         elif(senario == 1): #high voltage 
             self.network.asymmetric_sgen['p_a_mw'] = 0.0
             self.network.asymmetric_sgen['q_a_mvar'] = 0.0
@@ -91,16 +109,17 @@ class Three_Phase_EU(gym.Env):
             self.network.asymmetric_sgen['q_c_mvar'] = 0.0
             
             for i in range(sgen_num):
-                self.network.asymmetric_sgen.at[0, 'p_a_mw'] = np.random.uniform(0.15, 0.6)
-                self.network.asymmetric_sgen.at[0, 'p_b_mw'] = np.random.uniform(0.15, 0.6)
-                self.network.asymmetric_sgen.at[0, 'p_c_mw'] = np.random.uniform(0.15, 0.6)   
+                self.network.asymmetric_sgen.at[i, 'p_a_mw'] = np.random.uniform(0.0, 0.1)
+                self.network.asymmetric_sgen.at[i, 'p_b_mw'] = np.random.uniform(0.0, 0.1)
+                self.network.asymmetric_sgen.at[i, 'p_c_mw'] = np.random.uniform(0.0, 0.1)   
         
         pp.runpp_3ph(self.network)
 
         state_a = self.network.res_bus_3ph.iloc[self.injection_bus].vm_a_pu.to_numpy().reshape(-1,1)
         state_b = self.network.res_bus_3ph.iloc[self.injection_bus].vm_b_pu.to_numpy().reshape(-1,1)
         state_c = self.network.res_bus_3ph.iloc[self.injection_bus].vm_c_pu.to_numpy().reshape(-1,1)
-        self.state = np.hstack([state_a, state_b, state_c])
+        self.state = np.hstack([state_a, state_b, state_c]) #shape: number_of_bus*3
+        # print(state_a)
         return self.state
 
 def create_eu_lv():
@@ -112,11 +131,11 @@ def create_eu_lv():
     pp_net.asymmetric_sgen['p_c_mw'] = 0.0
     pp_net.asymmetric_sgen['q_c_mvar'] = 0.0
 
-    pp.create_asymmetric_sgen(pp_net, 25)
-    # pp.create_asymmetric_sgen(pp_net, 70)
-    # pp.create_asymmetric_sgen(pp_net, 32)
-    # pp.create_asymmetric_sgen(pp_net, 41)
-    # pp.create_asymmetric_sgen(pp_net, 81)
+    # pp.create_asymmetric_sgen(pp_net, 25)
+    pp.create_asymmetric_sgen(pp_net, 171)
+    pp.create_asymmetric_sgen(pp_net, 133)
+    pp.create_asymmetric_sgen(pp_net, 378)
+    # pp.create_asymmetric_sgen(pp_net, 432)
     # pp.create_asymmetric_sgen(pp_net, 115)
     # pp.create_asymmetric_sgen(pp_net, 65)
     # pp.create_asymmetric_sgen(pp_net, 142)
@@ -128,16 +147,18 @@ def create_eu_lv():
 
 if __name__ == "__main__":
     net = create_eu_lv()
-    injection_bus = np.array([25])
+    injection_bus = np.array([171,133,378])
     env = Three_Phase_EU(net, injection_bus)
     state_list = []
     for i in range(100):
         state = env.reset(i)
         state_list.append(state)
     state_list = np.array(state_list)
-    fig, axs = plt.subplots(1, 1, figsize=(15,3))
-    for i in range(1):
-        axs.hist(state_list[:,i,1])
+    # print(state_list.shape)
+    fig, axs = plt.subplots(3, 3, figsize=(9,9))
+    for i in range(3):
+        for j in range(len(injection_bus)):
+            axs[i,j].hist(state_list[:,j,i])
     plt.show()
     
     

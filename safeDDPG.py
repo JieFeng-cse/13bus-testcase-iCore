@@ -1,3 +1,5 @@
+from email import policy
+# from multiprocessing.reduction import steal_handle
 from turtle import forward
 # from pyrsistent import T
 from sqlalchemy import true
@@ -56,13 +58,15 @@ class DDPG:
  
         self.value_optimizer.step()
         
-        
+        #linear_action = (torch.maximum(state-1.03,torch.zeros_like(state))-torch.maximum(0.97-state,torch.zeros_like(state)))*2
+        # policy_loss = self.value_criterion(self.policy_net(state),linear_action)
         policy_loss = self.value_net(state, last_action-self.policy_net(state)) 
-        policy_loss = -policy_loss.mean()
+        policy_loss = -policy_loss.mean() #+ 0.1*self.value_criterion(self.policy_net(state),linear_action)
         
         self.policy_optimizer.zero_grad()
         policy_loss.backward()
         self.policy_optimizer.step()
+        # print(f'value loss: {value_loss.cpu().detach().numpy():.4f}, policy_loss: {policy_loss.cpu().detach().numpy():.4f}')
 
         for target_param, param in zip(self.target_value_net.parameters(), self.value_net.parameters()):
             target_param.data.copy_(
@@ -388,19 +392,42 @@ class StablePolicy3phase(nn.Module):
 
 
 class SafePolicy3phase(nn.Module):
-    def __init__(self, env, obs_dim, action_dim, hidden_dim, scale = 0.15, init_w=3e-3):
+    def __init__(self, env, obs_dim, action_dim, hidden_dim, bus_id, scale = 0.15, init_w=3e-3):
         super(SafePolicy3phase,self).__init__()
         use_cuda = torch.cuda.is_available()
+        self.env = env
+        self.bus_id = bus_id
         self.device   = torch.device("cuda" if use_cuda else "cpu")
-        action_dim=1
-        self.policy_a = SafePolicyNetwork(env, obs_dim, action_dim, hidden_dim, scale = 0.15, init_w=3e-3)
-        self.policy_b = SafePolicyNetwork(env, obs_dim, action_dim, hidden_dim, scale = 0.15, init_w=3e-3)
-        self.policy_c = SafePolicyNetwork(env, obs_dim, action_dim, hidden_dim, scale = 0.15, init_w=3e-3)
+        self.action_dim = action_dim
+        action_dim_per_phase=1
+        for phase in env.injection_bus[bus_id]:
+            if phase == 'a':
+                self.policy_a = SafePolicyNetwork(env, obs_dim, action_dim_per_phase, hidden_dim, scale = 0.15, init_w=3e-3)
+            if phase == 'b':
+                self.policy_b = SafePolicyNetwork(env, obs_dim, action_dim_per_phase, hidden_dim, scale = 0.15, init_w=3e-3)
+            if phase == 'c':
+                self.policy_c = SafePolicyNetwork(env, obs_dim, action_dim_per_phase, hidden_dim, scale = 0.15, init_w=3e-3)
+        # self.policy_a = SafePolicyNetwork(env, obs_dim, action_dim, hidden_dim, scale = 0.15, init_w=3e-3)
+        # self.policy_b = SafePolicyNetwork(env, obs_dim, action_dim, hidden_dim, scale = 0.15, init_w=3e-3)
+        # self.policy_c = SafePolicyNetwork(env, obs_dim, action_dim, hidden_dim, scale = 0.15, init_w=3e-3)
     def forward(self, state):
-        action_a = self.policy_a(state[:,0].unsqueeze(-1))
-        action_b = self.policy_b(state[:,1].unsqueeze(-1))
-        action_c = self.policy_c(state[:,2].unsqueeze(-1))
-        action = torch.cat((action_a,action_b,action_c),dim=1)
+        action_list = []
+        for i,phase in enumerate(self.env.injection_bus[self.bus_id]):
+            if phase == 'a':
+                action = self.policy_a(state[:,i].unsqueeze(-1))
+                action_list.append(action)
+            if phase == 'b':
+                action = self.policy_b(state[:,i].unsqueeze(-1))
+                action_list.append(action)
+            if phase == 'c':
+                action = self.policy_c(state[:,i].unsqueeze(-1))
+                action_list.append(action)
+        # action_a = self.policy_a(state[:,0].unsqueeze(-1))
+        # action_b = self.policy_b(state[:,1].unsqueeze(-1))
+        # action_c = self.policy_c(state[:,2].unsqueeze(-1))
+        # action = torch.cat((action_a,action_b,action_c),dim=1)
+        action = torch.cat(action_list,dim=1)
+        action += (torch.maximum(state-1.03, torch.zeros_like(state).to(self.device))-torch.maximum(0.97-state,  torch.zeros_like(state).to(self.device)))*0.01
         return action
     def get_action(self, state):
         state = torch.FloatTensor(state).to(self.device)
@@ -446,12 +473,18 @@ class ValueNetwork(nn.Module):
 
         self.linear3.weight.data.uniform_(-init_w, init_w)
         self.linear3.bias.data.uniform_(-init_w, init_w)
+        self.bn1 = nn.BatchNorm1d(hidden_dim)
+        self.bn2 = nn.BatchNorm1d(hidden_dim)
+        self.bn3 = nn.BatchNorm1d(1)
 
     def forward(self, state, action):
         x = torch.cat((state, action), dim=1)
         x = F.relu(self.linear1(x))
+        # x = self.bn1(x)
         x = F.relu(self.linear2(x))
+        # x = self.bn2(x)
         x = self.linear3(x)
+        # x = self.bn3(x)
         return x
 
 class ReplayBuffer:

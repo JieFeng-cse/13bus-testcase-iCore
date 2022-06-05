@@ -1,4 +1,5 @@
 ### import collections
+from cv2 import phase
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 import numpy as np
@@ -95,12 +96,17 @@ if args.env_name == 'eu-lv':
     num_agent = len(injection_bus)
     ph_num=3
 if args.env_name == '13bus3p':
-    pp_net = create_13bus3p()
+    # injection_bus = np.array([675,633,680])
+    injection_bus = np.array([633,634,671,645,646,692,675,611,652,670,632,680,684])
+    pp_net, injection_bus_dict = create_13bus3p(injection_bus) 
     max_ac = 0.5
-    injection_bus = np.array([675,633,680])
-    env = IEEE13bus3p(pp_net,injection_bus)
+    env = IEEE13bus3p(pp_net,injection_bus_dict)
     num_agent = len(injection_bus)
     ph_num=3
+    if args.algorithm == 'safe-ddpg':
+        plr = 1e-4
+    if args.algorithm == 'ddpg':
+        plr = 1e-5
 
 
 
@@ -116,19 +122,22 @@ agent_list = []
 replay_buffer_list = []
 
 for i in range(num_agent):
+    if ph_num == 3:
+        obs_dim = len(env.injection_bus[env.injection_bus_str[i]])
+        action_dim = obs_dim
     value_net  = ValueNetwork(obs_dim=obs_dim, action_dim=action_dim, hidden_dim=hidden_dim).to(device)
     if args.algorithm == 'safe-ddpg' and not ph_num == 3:
         policy_net = SafePolicyNetwork(env=env, obs_dim=obs_dim, action_dim=action_dim, hidden_dim=hidden_dim).to(device)
         target_policy_net = SafePolicyNetwork(env=env, obs_dim=obs_dim, action_dim=action_dim, hidden_dim=hidden_dim).to(device)
-    elif args.algorithm == 'safe-ddpg' and ph_num == 3 and args.safe_type == 'loss':
-        policy_net = PolicyNetwork(env=env, obs_dim=obs_dim, action_dim=action_dim, hidden_dim=hidden_dim).to(device)
-        target_policy_net = PolicyNetwork(env=env, obs_dim=obs_dim, action_dim=action_dim, hidden_dim=hidden_dim).to(device)
+    # elif args.algorithm == 'safe-ddpg' and ph_num == 3 and args.safe_type == 'loss':
+    #     policy_net = PolicyNetwork(env=env, obs_dim=obs_dim, action_dim=action_dim, hidden_dim=hidden_dim).to(device)
+    #     target_policy_net = PolicyNetwork(env=env, obs_dim=obs_dim, action_dim=action_dim, hidden_dim=hidden_dim).to(device)
     elif args.algorithm == 'safe-ddpg' and ph_num == 3 and args.safe_type == 'three_single':
-        policy_net = SafePolicy3phase(env=env, obs_dim=obs_dim, action_dim=action_dim, hidden_dim=hidden_dim).to(device)
-        target_policy_net = SafePolicy3phase(env=env, obs_dim=obs_dim, action_dim=action_dim, hidden_dim=hidden_dim).to(device)
-    elif args.algorithm == 'safe-ddpg' and ph_num == 3 and args.safe_type == 'dd':
-        policy_net = StablePolicy3phase(env=env, obs_dim=obs_dim, action_dim=action_dim, hidden_dim=hidden_dim).to(device)
-        target_policy_net = StablePolicy3phase(env=env, obs_dim=obs_dim, action_dim=action_dim, hidden_dim=hidden_dim).to(device)
+        policy_net = SafePolicy3phase(env, obs_dim, action_dim, hidden_dim, env.injection_bus_str[i]).to(device)
+        target_policy_net = SafePolicy3phase(env, obs_dim, action_dim, hidden_dim, env.injection_bus_str[i]).to(device)
+    # elif args.algorithm == 'safe-ddpg' and ph_num == 3 and args.safe_type == 'dd':
+    #     policy_net = StablePolicy3phase(env=env, obs_dim=obs_dim, action_dim=action_dim, hidden_dim=hidden_dim).to(device)
+    #     target_policy_net = StablePolicy3phase(env=env, obs_dim=obs_dim, action_dim=action_dim, hidden_dim=hidden_dim).to(device)
     else:
         policy_net = PolicyNetwork(env=env, obs_dim=obs_dim, action_dim=action_dim, hidden_dim=hidden_dim).to(device)
         target_policy_net = PolicyNetwork(env=env, obs_dim=obs_dim, action_dim=action_dim, hidden_dim=hidden_dim).to(device)
@@ -154,11 +163,30 @@ if args.status =='train':
     FLAG = 1
 else:
     FLAG = 0
+def get_id(phases):
+    if phases == 'abc':
+        id = [0,1,2]
+    elif phases == 'ab':
+        id = [0,1]
+    elif phases == 'ac':
+        id = [0,2]
+    elif phases == 'bc':
+        id = [1,2]
+    elif phases == 'a':
+        id = [0]
+    elif phases == 'b':
+        id = [1]
+    elif phases == 'c':
+        id = [2]
+    else:
+        print("error!")
+        exit(0)
+    return id
 
 if (FLAG ==0): 
     # load trained policy
     for i in range(num_agent):
-        if ph_num == 3:
+        if ph_num == 3 and args.algorithm=='safe-ddpg':
             valuenet_dict = torch.load(f'checkpoints/{type_name}/{args.env_name}/{args.algorithm}/{args.safe_type}/value_net_checkpoint_a{i}.pth')
             policynet_dict = torch.load(f'checkpoints/{type_name}/{args.env_name}/{args.algorithm}/{args.safe_type}/policy_net_checkpoint_a{i}.pth')
         else:
@@ -169,11 +197,32 @@ if (FLAG ==0):
 
 elif (FLAG ==1):
     # training episode
+    for i in range(num_agent):
+        if ph_num == 3 and args.algorithm=='safe-ddpg':
+            valuenet_dict = torch.load(f'checkpoints/{type_name}/{args.env_name}/{args.algorithm}/{args.safe_type} copy/value_net_checkpoint_a{i}.pth')
+            policynet_dict = torch.load(f'checkpoints/{type_name}/{args.env_name}/{args.algorithm}/{args.safe_type} copy/policy_net_checkpoint_a{i}.pth')
+        else:
+            valuenet_dict = torch.load(f'checkpoints/{type_name}/{args.env_name}/{args.algorithm} copy/value_net_checkpoint_a{i}.pth')
+            policynet_dict = torch.load(f'checkpoints/{type_name}/{args.env_name}/{args.algorithm} copy/policy_net_checkpoint_a{i}.pth')
+        agent_list[i].value_net.load_state_dict(valuenet_dict)
+        agent_list[i].policy_net.load_state_dict(policynet_dict) 
+        # if i not in {3,4,9}:
+        #     agent_list[i].value_net.train(False) 
+        #     agent_list[i].policy_net.train(False) 
+        # if i != (num_agent-1):
+        #     for param in agent_list[i].policy_net.parameters():
+        #         param.requires_grad = False
+
+        for target_param, param in zip(agent_list[i].target_value_net.parameters(), agent_list[i].value_net.parameters()):
+            target_param.data.copy_(param.data)
+
+        for target_param, param in zip(agent_list[i].target_policy_net.parameters(), agent_list[i].policy_net.parameters()):
+            target_param.data.copy_(param.data)
 
     if args.algorithm == 'safe-ddpg':
-        num_episodes = 600       
+        num_episodes = 200    
     else:
-        num_episodes = 2000 #123 2000
+        num_episodes = 200 #123 2000
 
     # trajetory length each episode
     num_steps = 30  
@@ -203,8 +252,15 @@ elif (FLAG ==1):
             action_p = []
             for i in range(num_agent):
                 # sample action according to the current policy and exploration noise
-                if args.env_name =='eu-lv':
-                    action_agent = agent_list[i].policy_net.get_action(np.asarray([state[i]])) + np.random.normal(0, max_ac)/np.sqrt(episode+1)
+                if ph_num==3:
+                    action_agent = np.zeros(3)
+                    phases = env.injection_bus[env.injection_bus_str[i]]
+                    id = get_id(phases)
+                    action_tmp = agent_list[i].policy_net.get_action(np.asarray([state[i,id]])) + np.random.normal(0, max_ac)/np.sqrt(episode+1)
+                    action_tmp = action_tmp.reshape(len(id),)  
+                    for j in range(len(phases)):
+                        action_agent[id[j]]=action_tmp[j]           
+                    # action_p.append(action_agent)
                     action_agent = np.clip(action_agent, -max_ac, max_ac) 
                     action_p.append(action_agent)
                 else:
@@ -226,11 +282,18 @@ elif (FLAG ==1):
                 break
             else:
                 for i in range(num_agent): 
-                    state_buffer = state[i].reshape(ph_num,) 
-                    action_buffer = action[i].reshape(ph_num,)
-                    last_action_buffer = last_action[i].reshape(ph_num,)
-                    next_state_buffer = next_state[i].reshape(ph_num, )
-
+                    if ph_num == 1:
+                        state_buffer = state[i].reshape(ph_num,) 
+                        action_buffer = action[i].reshape(ph_num,)
+                        last_action_buffer = last_action[i].reshape(ph_num,)
+                        next_state_buffer = next_state[i].reshape(ph_num, )
+                    else:
+                        phases = env.injection_bus[env.injection_bus_str[i]]
+                        id = get_id(phases)
+                        state_buffer = state[i,id].reshape(len(phases),) 
+                        action_buffer = action[i,id].reshape(len(phases),) 
+                        last_action_buffer = last_action[i,id].reshape(len(phases),) 
+                        next_state_buffer = next_state[i,id].reshape(len(phases),) 
                     # store transition (s_t, a_t, r_t, s_{t+1}) in R
                     replay_buffer_list[i].push(state_buffer, action_buffer, last_action_buffer,
                                                reward_sep[i], next_state_buffer, done) #_sep[i]
@@ -260,7 +323,7 @@ elif (FLAG ==1):
             print("Episode * {} * Avg Reward is ==> {}".format(episode, avg_reward))
         avg_reward_list.append(avg_reward)
     for i in range(num_agent):
-        if ph_num == 3:
+        if ph_num == 3 and args.algorithm=='safe-ddpg':
             pth_value = f'checkpoints/{type_name}/{args.env_name}/{args.algorithm}/{args.safe_type}/value_net_checkpoint_a{i}.pth'
             pth_policy = f'checkpoints/{type_name}/{args.env_name}/{args.algorithm}/{args.safe_type}/policy_net_checkpoint_a{i}.pth'
         else:
@@ -318,9 +381,17 @@ for i in range(num_agent):
         else:
             state = np.resize(np.array([0.8+0.01*j]),(3))
             s_array[j] = state[0]        
-            action_baseline = (np.maximum(state[0]-1.05, 0)-np.maximum(0.95-state[0], 0)).reshape((1,))
-    
-        action = agent_list[i].policy_net.get_action(np.asarray([state]))
+            action_baseline = (np.maximum(state[0]-1.03, 0)-np.maximum(0.97-state[0], 0)).reshape((1,))
+        if ph_num == 3: 
+            action = np.zeros(3)
+            phases = env.injection_bus[env.injection_bus_str[i]]
+            id = get_id(phases)
+            action_tmp = agent_list[i].policy_net.get_action(np.asarray([state[id]])) 
+            action_tmp = action_tmp.reshape(len(id),)  
+            for p in range(len(phases)):
+                action[id[p]]=action_tmp[p]
+        else:
+            action = agent_list[i].policy_net.get_action(np.asarray([state])) 
         action = np.clip(action, -max_ac, max_ac) 
         a_array_baseline[j] = -action_baseline[0]
         a_array[j] = -action
@@ -348,14 +419,25 @@ action_list=[]
 state_list =[]
 reward_list = []
 state_list.append(state)
-for step in range(60):
+for step in range(100):
     action = []
     for i in range(num_agent):
         # sample action according to the current policy and exploration noise
-        action_agent = agent_list[i].policy_net.get_action(np.asarray([state[i]]))
-        # action_agent = (np.maximum(state[i]-1.05, 0)-np.maximum(0.95-state[i], 0)).reshape((1,))
-        action_agent = np.clip(action_agent, -max_ac, max_ac)
-        action.append(action_agent)
+        if ph_num==3:
+            action_agent = np.zeros(3)
+            phases = env.injection_bus[env.injection_bus_str[i]]
+            id = get_id(phases)
+            action_tmp = agent_list[i].policy_net.get_action(np.asarray([state[i,id]])) 
+            action_tmp = action_tmp.reshape(len(id),)  
+            for i in range(len(phases)):
+                action_agent[id[i]]=action_tmp[i]
+            action_agent = np.clip(action_agent, -max_ac, max_ac) 
+            action.append(action_agent)
+        else:
+            action_agent = agent_list[i].policy_net.get_action(np.asarray([state[i]]))
+            # action_agent = (np.maximum(state[i]-1.05, 0)-np.maximum(0.95-state[i], 0)).reshape((1,))
+            action_agent = np.clip(action_agent, -max_ac, max_ac)
+            action.append(action_agent)
 
     # PI policy    
     action = last_action - np.asarray(action)

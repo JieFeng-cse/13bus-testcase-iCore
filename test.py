@@ -25,7 +25,9 @@ import argparse
 from environment_single_phase import create_56bus, VoltageCtrl_nonlinear
 from env_single_phase_13bus import IEEE13bus, create_13bus
 from env_single_phase_123bus import IEEE123bus, create_123bus
-from safeDDPG import ValueNetwork, SafePolicyNetwork, DDPG, ReplayBuffer, ReplayBufferPI, PolicyNetwork
+from safeDDPG import ValueNetwork, SafePolicyNetwork, DDPG, ReplayBuffer, ReplayBufferPI, PolicyNetwork, SafePolicy3phase
+from IEEE_13_3p import IEEE13bus3p, create_13bus3p
+
 
 use_cuda = torch.cuda.is_available()
 device   = torch.device("cuda" if use_cuda else "cpu")
@@ -34,6 +36,7 @@ parser = argparse.ArgumentParser(description='Single Phase Safe DDPG')
 parser.add_argument('--env_name', default="13bus",
                     help='name of the environment to run')
 parser.add_argument('--algorithm', default='safe-ddpg', help='name of algorithm')
+parser.add_argument('--safe_type', default='three_single')
 args = parser.parse_args()
 seed = 10
 torch.manual_seed(seed)
@@ -43,6 +46,8 @@ plt.rcParams['font.size'] = '20'
 Create Agent list and replay buffer
 """
 max_ac = 0.3
+ph_num = 1
+slope = 2
 if args.env_name == '56bus':
     pp_net = create_56bus()
     injection_bus = np.array([18, 21, 30, 45, 53])-1  
@@ -59,6 +64,20 @@ if args.env_name == '123bus':
     env = IEEE123bus(pp_net, injection_bus)
     num_agent = 14
     max_ac = 0.8
+    slope = 5
+if args.env_name == '13bus3p':
+    # injection_bus = np.array([675,633,680])
+    injection_bus = np.array([633,634,671,645,646,692,675,611,652,670,632,680,684])
+    pp_net, injection_bus_dict = create_13bus3p(injection_bus) 
+    max_ac = 0.3
+    env = IEEE13bus3p(pp_net,injection_bus_dict)
+    num_agent = len(injection_bus)
+    ph_num=3
+
+if ph_num == 3:
+    type_name = 'three-phase'
+else:
+    type_name = 'single-phase'
 
 obs_dim = env.obs_dim
 action_dim = env.action_dim
@@ -69,8 +88,15 @@ ddpg_agent_list = []
 safe_ddpg_agent_list = []
 
 for i in range(num_agent):
-    safe_ddpg_value_net  = ValueNetwork(obs_dim=obs_dim, action_dim=action_dim, hidden_dim=hidden_dim).to(device)    
-    safe_ddpg_policy_net = SafePolicyNetwork(env=env, obs_dim=obs_dim, action_dim=action_dim, hidden_dim=hidden_dim).to(device)
+    if not ph_num == 3:
+        safe_ddpg_value_net  = ValueNetwork(obs_dim=obs_dim, action_dim=action_dim, hidden_dim=hidden_dim).to(device)    
+        safe_ddpg_policy_net = SafePolicyNetwork(env=env, obs_dim=obs_dim, action_dim=action_dim, hidden_dim=hidden_dim).to(device)
+    else:
+        if ph_num == 3:
+            obs_dim = len(env.injection_bus[env.injection_bus_str[i]])
+            action_dim = obs_dim
+        safe_ddpg_policy_net = SafePolicy3phase(env, obs_dim, action_dim, hidden_dim, env.injection_bus_str[i]).to(device)
+        safe_ddpg_value_net  = ValueNetwork(obs_dim=obs_dim, action_dim=action_dim, hidden_dim=hidden_dim).to(device)  
     
     ddpg_value_net  = ValueNetwork(obs_dim=obs_dim, action_dim=action_dim, hidden_dim=hidden_dim).to(device)  
     ddpg_policy_net = PolicyNetwork(env=env, obs_dim=obs_dim, action_dim=action_dim, hidden_dim=hidden_dim).to(device)    
@@ -85,15 +111,21 @@ for i in range(num_agent):
     safe_ddpg_agent_list.append(safe_ddpg_agent)
 
 for i in range(num_agent):
-    ddpg_valuenet_dict = torch.load(f'checkpoints/single-phase/{args.env_name}/ddpg/value_net_checkpoint_a{i}.pth')
-    ddpg_policynet_dict = torch.load(f'checkpoints/single-phase/{args.env_name}/ddpg/policy_net_checkpoint_a{i}.pth')
+    ddpg_valuenet_dict = torch.load(f'checkpoints/{type_name}/{args.env_name}/ddpg/value_net_checkpoint_a{i}.pth')
+    ddpg_policynet_dict = torch.load(f'checkpoints/{type_name}/{args.env_name}/ddpg/policy_net_checkpoint_a{i}.pth')
     ddpg_agent_list[i].value_net.load_state_dict(ddpg_valuenet_dict)
     ddpg_agent_list[i].policy_net.load_state_dict(ddpg_policynet_dict)
 
-    safe_ddpg_valuenet_dict = torch.load(f'checkpoints/single-phase/{args.env_name}/safe-ddpg/value_net_checkpoint_a{i}.pth')
-    safe_ddpg_policynet_dict = torch.load(f'checkpoints/single-phase/{args.env_name}/safe-ddpg/policy_net_checkpoint_a{i}.pth')
-    safe_ddpg_agent_list[i].value_net.load_state_dict(safe_ddpg_valuenet_dict)
-    safe_ddpg_agent_list[i].policy_net.load_state_dict(safe_ddpg_policynet_dict)
+    if ph_num == 3:
+        safe_ddpg_valuenet_dict = torch.load(f'checkpoints/{type_name}/{args.env_name}/safe-ddpg/{args.safe_type}/value_net_checkpoint_a{i}.pth')
+        safe_ddpg_policynet_dict = torch.load(f'checkpoints/{type_name}/{args.env_name}/safe-ddpg/{args.safe_type}/policy_net_checkpoint_a{i}.pth')
+        safe_ddpg_agent_list[i].value_net.load_state_dict(safe_ddpg_valuenet_dict)
+        safe_ddpg_agent_list[i].policy_net.load_state_dict(safe_ddpg_policynet_dict)
+    else:
+        safe_ddpg_valuenet_dict = torch.load(f'checkpoints/{type_name}/{args.env_name}/safe-ddpg/value_net_checkpoint_a{i}.pth')
+        safe_ddpg_policynet_dict = torch.load(f'checkpoints/{type_name}/{args.env_name}/safe-ddpg/policy_net_checkpoint_a{i}.pth')
+        safe_ddpg_agent_list[i].value_net.load_state_dict(safe_ddpg_valuenet_dict)
+        safe_ddpg_agent_list[i].policy_net.load_state_dict(safe_ddpg_policynet_dict)
 def plot_action():
     
     fig, axs = plt.subplots(1, 1, figsize=(16,12))
@@ -227,10 +259,10 @@ def test_suc_rate(algm, step_num=60):
     final_state_list = []
     final_step_list = []
     control_cost_list = []
-    for i in range(500):
-        state = env.reset(i)
+    for rep in range(500):
+        state = env.reset(rep)
         episode_reward = 0
-        last_action = np.zeros((num_agent,1))
+        last_action = np.zeros((num_agent,ph_num))
         action_list=[]
         state_list =[]
         state_list.append(state)
@@ -238,16 +270,34 @@ def test_suc_rate(algm, step_num=60):
         for step in range(step_num):
             action = []
             for i in range(num_agent):
+                if ph_num==3:
+                    action_agent = np.zeros(3)
+                    phases = env.injection_bus[env.injection_bus_str[i]]
+                    id = get_id(phases)
+                    if algm == 'linear':
+                        action_agent = (np.maximum(state[i]-1.03, 0)-np.maximum(0.97-state[i], 0)).reshape((ph_num,))*slope
+                    elif algm == 'safe-ddpg':
+                        action_tmp = safe_ddpg_agent_list[i].policy_net.get_action(np.asarray([state[i,id]])) 
+                        action_tmp = action_tmp.reshape(len(id),)  
+                    elif algm == 'ddpg':
+                        action_tmp = ddpg_agent_list[i].policy_net.get_action(np.asarray([state[i,id]])) 
+                        action_tmp = action_tmp.reshape(len(id),)  
+                    if algm != 'linear':
+                        for p in range(len(phases)):
+                            action_agent[id[p]]=action_tmp[p]
+                    action_agent = np.clip(action_agent, -max_ac, max_ac) 
+                    action.append(action_agent)
                 # sample action according to the current policy and exploration noise
-                if algm == 'linear':
-                    action_agent = (np.maximum(state[i]-1.03, 0)-np.maximum(0.97-state[i], 0)).reshape((1,))*5
-                elif algm == 'safe-ddpg':
-                    action_agent = safe_ddpg_agent_list[i].policy_net.get_action(np.asarray([state[i]]))
-                elif algm == 'ddpg':
-                    action_agent = ddpg_agent_list[i].policy_net.get_action(np.asarray([state[i]]))
-                # 
-                action_agent = np.clip(action_agent, -max_ac, max_ac)
-                action.append(action_agent)
+                else:
+                    if algm == 'linear':
+                        action_agent = (np.maximum(state[i]-1.03, 0)-np.maximum(0.97-state[i], 0)).reshape((1,))*slope
+                    elif algm == 'safe-ddpg':
+                        action_agent = safe_ddpg_agent_list[i].policy_net.get_action(np.asarray([state[i]]))
+                    elif algm == 'ddpg':
+                        action_agent = ddpg_agent_list[i].policy_net.get_action(np.asarray([state[i]]))
+                    # 
+                    action_agent = np.clip(action_agent, -max_ac, max_ac)
+                    action.append(action_agent)
 
             # PI policy    
             action = last_action - np.asarray(action)
@@ -267,6 +317,7 @@ def test_suc_rate(algm, step_num=60):
         # if not done:
         #     final_step_list.append(step_num)
         final_state_list.append(next_state)
+    print(f'result for {algm}')
     print(success_num)
     print(np.mean(final_step_list), np.std(final_step_list))
     print('cost',np.mean(control_cost_list), np.std(control_cost_list))
@@ -285,7 +336,7 @@ def plot_bar(num_agent):
     bars=('Stable','5-7%','7-9%','9-10%','>10%')
     y=np.arange(len(bars))
     plt.bar(y+0.2,marks, 0.4,color='b',label='Stable-DDPG')
-    state_list = test_suc_rate('ddpg')
+    state_list = test_suc_rate('ddpg',step_num=100)
     state_list = np.asarray(state_list)
     state_list = np.abs(state_list-1)
     marks = [0,0,0,0,0]
@@ -431,10 +482,34 @@ def plot_action_selcted(selected=[1,5,9]):
         axs[indx].plot(s_array, a_array_baseline, '-.', label = 'Linear',color='r')
         axs[indx].legend(loc='upper right', prop={"size":10})
     plt.show()
+
+def get_id(phases):
+    if phases == 'abc':
+        id = [0,1,2]
+    elif phases == 'ab':
+        id = [0,1]
+    elif phases == 'ac':
+        id = [0,2]
+    elif phases == 'bc':
+        id = [1,2]
+    elif phases == 'a':
+        id = [0]
+    elif phases == 'b':
+        id = [1]
+    elif phases == 'c':
+        id = [2]
+    else:
+        print("error!")
+        exit(0)
+    return id
+
 if __name__ == "__main__":
-    # test_suc_rate('ddpg',step_num=100) #safe-ddpg
+    # print("test")
+    # test_suc_rate('safe-ddpg',step_num=100) #safe-ddpg
+    # test_suc_rate('linear',step_num=100)
+    plot_bar(len(injection_bus))
     # test_suc_rate('linear')
     # plot_action_selcted()
     # plot_bar(len(injection_bus))
-    plot_traj_123()
+    # plot_traj_123()
     # plot_action_selcted()

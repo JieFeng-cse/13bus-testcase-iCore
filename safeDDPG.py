@@ -58,10 +58,10 @@ class DDPG:
  
         self.value_optimizer.step()
         
-        #linear_action = (torch.maximum(state-1.03,torch.zeros_like(state))-torch.maximum(0.97-state,torch.zeros_like(state)))*2
+        # linear_action = (torch.maximum(state-1.03,torch.zeros_like(state))-torch.maximum(0.97-state,torch.zeros_like(state)))*1
         # policy_loss = self.value_criterion(self.policy_net(state),linear_action)
         policy_loss = self.value_net(state, last_action-self.policy_net(state)) 
-        policy_loss = -policy_loss.mean() #+ 0.1*self.value_criterion(self.policy_net(state),linear_action)
+        policy_loss =  -policy_loss.mean() #+ 0.1*self.value_criterion(self.policy_net(state),linear_action)
         
         self.policy_optimizer.zero_grad()
         policy_loss.backward()
@@ -473,9 +473,9 @@ class ValueNetwork(nn.Module):
 
         self.linear3.weight.data.uniform_(-init_w, init_w)
         self.linear3.bias.data.uniform_(-init_w, init_w)
-        self.bn1 = nn.BatchNorm1d(hidden_dim)
-        self.bn2 = nn.BatchNorm1d(hidden_dim)
-        self.bn3 = nn.BatchNorm1d(1)
+        # self.bn1 = nn.BatchNorm1d(hidden_dim)
+        # self.bn2 = nn.BatchNorm1d(hidden_dim)
+        # self.bn3 = nn.BatchNorm1d(1)
 
     def forward(self, state, action):
         x = torch.cat((state, action), dim=1)

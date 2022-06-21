@@ -59,8 +59,8 @@ class IEEE13bus(gym.Env):
         
         done = False 
         #safe-ddpg reward
-        reward = float(-0*LA.norm(p_action)-100*LA.norm(np.clip(self.state-self.vmax, 0, np.inf))**2
-                       -100*LA.norm(np.clip(self.vmin-self.state, 0, np.inf))**2)
+        reward = float(-10*LA.norm(action)**2 -100*LA.norm(np.clip(self.state-self.vmax, 0, np.inf))**2
+                       - 100*LA.norm(np.clip(self.vmin-self.state, 0, np.inf))**2)
         #why in this part originally it is not square?
         # local reward
         agent_num = len(self.injection_bus)
@@ -72,16 +72,27 @@ class IEEE13bus(gym.Env):
         # # for i in range(agent_num):
         #     reward_sep[i] = float(-0*LA.norm(p_action[i])**2 -100*LA.norm(np.clip(self.state[i]-self.vmax, 0, np.inf))**2 
         #                    - 100*LA.norm(np.clip(self.vmin-self.state[i], 0, np.inf))**2 )              
+        # for i in range(agent_num):
+        #     if self.state[i]<0.95:
+        #         reward_sep[i] = float(-20*LA.norm(p_action[i],1) -100*LA.norm([np.clip(self.vmin-self.state[i], 0, np.inf)],1)) 
+        #     elif self.state[i]>1.05:
+        #         reward_sep[i] = float(-10*LA.norm(p_action[i],1) -115*LA.norm([np.clip(self.state[i]-self.vmax, 0, np.inf)],1)) 
+        # for i in range(agent_num):
+        #     if self.state[i]<0.95:
+        #         reward_sep[i] = float(-20*LA.norm(p_action[i],1) -100*LA.norm([np.clip(self.vmin-self.state[i], 0, np.inf)],1)) 
+        #     elif self.state[i]>1.05:
+        #         reward_sep[i] = float(-20*LA.norm(p_action[i],1) -100*LA.norm([np.clip(self.state[i]-self.vmax, 0, np.inf)],1)) 
+        # reward = np.sum(reward_sep)
         for i in range(agent_num):
             if (self.state[i]>1.0 and self.state[i]<1.05):
-                reward_sep[i] = float(-20*LA.norm(p_action[i],1) -100*LA.norm([np.clip(self.state[i]-self.vmax, -np.inf, 0)],1))   
+                reward_sep[i] = float(-0*LA.norm(p_action[i],1) -0*LA.norm([np.clip(self.state[i]-self.vmax, -np.inf, 0)],2)**2)   
             elif (self.state[i]>0.95 and self.state[i]<1.0):
-                reward_sep[i] = float(-20*LA.norm(p_action[i],1) -100*LA.norm([np.clip(self.vmin-self.state[i], -np.inf, 0)],1))   
+                reward_sep[i] = float(-0*LA.norm(p_action[i],1) -0*LA.norm([np.clip(self.vmin-self.state[i], -np.inf, 0)],2)**2)   
             elif self.state[i]<0.95:
-                reward_sep[i] = float(-20*LA.norm(p_action[i],1) -100*LA.norm([np.clip(self.vmin-self.state[i], 0, np.inf)],1)) 
+                reward_sep[i] = float(-1*LA.norm(p_action[i],1) -100*LA.norm([np.clip(self.vmin-self.state[i], 0, np.inf)],2)**2) 
             elif self.state[i]>1.05:
-                reward_sep[i] = float(-10*LA.norm(p_action[i],1) -115*LA.norm([np.clip(self.state[i]-self.vmax, 0, np.inf)],1)) 
-        # reward = np.sum(reward_sep)
+                reward_sep[i] = float(-1*LA.norm(p_action[i],1) -100*LA.norm([np.clip(self.state[i]-self.vmax, 0, np.inf)],2)**2) 
+        
         # state-transition dynamics
         for i in range(len(self.injection_bus)):
             self.network.sgen.at[i, 'q_mvar'] = action[i] 
@@ -97,7 +108,7 @@ class IEEE13bus(gym.Env):
         return self.state, reward, reward_sep, done
 
     
-    def step_load(self, action, load_p, load_q): #state-transition with specific load
+    def step_load(self, action, load_p, load_q, pv_p): #state-transition with specific load
         
         done = False 
         
@@ -105,13 +116,27 @@ class IEEE13bus(gym.Env):
                        - 100*LA.norm(np.clip(self.vmin-self.state, 0, np.inf))**2)
         
         #adjust power consumption at the load bus
-        for i in range(self.env.agentnum):
-            self.network.load.at[i, 'p_mw'] = load_p[i]
-            self.network.load.at[i, 'q_mvar'] = load_q[i]
+        load_idx = [1,5,10]
+        for i in range(len(self.network.load)):
+            self.network.load.at[i, 'p_mw'] = load_p*0.05
+            self.network.load.at[i, 'q_mvar'] = load_q*0.05
+        # for i in range(len(self.injection_bus)):
+        #     self.network.load.at[load_idx[i], 'p_mw'] = load_p*0.1
+        #     self.network.load.at[load_idx[i], 'q_mvar'] = load_q*0.1
+        
            
         #adjust reactive power inj at the PV bus
-        for i in range(self.env.agentnum):
+        for i in range(len(self.injection_bus)):
             self.network.sgen.at[i, 'q_mvar'] = action[i] 
+
+        #adjust reactive power inj at the PV bus
+        for i in range(len(self.injection_bus)):
+            self.network.sgen.at[i, 'p_mw'] = pv_p*0.1
+        # self.network.sgen.at[0, 'p_mw'] = pv_p*0.4
+        # self.network.sgen.at[1, 'p_mw'] = pv_p*0.4
+        # self.network.sgen.at[2, 'p_mw'] = pv_p*0.4
+        # self.network.sgen.at[4, 'p_mw'] = 0.2*pv_p
+        # self.network.sgen.at[5, 'q_mvar'] = 0.3*pv_p
 
         pp.runpp(self.network, algorithm='bfsw', init = 'dc')
         
@@ -126,7 +151,7 @@ class IEEE13bus(gym.Env):
     def reset(self, seed=1): #sample different initial volateg conditions during training
         np.random.seed(seed)
         senario = np.random.choice([0,1])
-        # senario = 1
+        # senario = 0
         if(senario == 0):#low voltage 
            # Low voltage
             self.network.sgen['p_mw'] = 0.0
@@ -137,29 +162,35 @@ class IEEE13bus(gym.Env):
             self.network.sgen.at[0, 'p_mw'] = -0.5*np.random.uniform(1, 7)
             self.network.sgen.at[1, 'p_mw'] = -0.8*np.random.uniform(1, 4)
             self.network.sgen.at[2, 'p_mw'] = -0.3*np.random.uniform(1, 5)
+            # for i in range(len(self.injection_bus)):
+            #     self.network.sgen.at[i, 'p_mw'] = -0.3*np.random.uniform(1, 2.5)
         elif(senario == 1): #high voltage 
             self.network.sgen['p_mw'] = 0.0
             self.network.sgen['q_mvar'] = 0.0
             self.network.load['p_mw'] = 0.0
             self.network.load['q_mvar'] = 0.0
             
+            # for i in range(len(self.injection_bus)):
+            #     self.network.sgen.at[i, 'p_mw'] = 0.5*np.random.uniform(0, 2)
             self.network.sgen.at[0, 'p_mw'] = np.random.uniform(0.5, 4)
             self.network.sgen.at[1, 'p_mw'] = np.random.uniform(0, 4.51)
             self.network.sgen.at[2, 'p_mw'] = np.random.uniform(0, 5)
 
-            # self.network.sgen.at[0, 'p_mw'] = np.random.uniform(5, 11)
-            # self.network.sgen.at[1, 'p_mw'] = np.random.uniform(2, 4.5)
-            # self.network.sgen.at[2, 'p_mw'] = np.random.uniform(1, 5)
+            # # self.network.sgen.at[0, 'p_mw'] = np.random.uniform(5, 11)
+            # # self.network.sgen.at[1, 'p_mw'] = np.random.uniform(2, 4.5)
+            # # self.network.sgen.at[2, 'p_mw'] = np.random.uniform(1, 5)
 
             self.network.sgen.at[3, 'q_mvar'] = 0.3*np.random.uniform(0, 0.2)
             self.network.sgen.at[4, 'p_mw'] = 0.5*np.random.uniform(2, 3)
             self.network.sgen.at[5, 'q_mvar'] = 0.4*np.random.uniform(0, 10)
-            # # self.network.sgen.at[6, 'p_mw'] = 0.5*np.random.uniform(1, 2)
-            # # self.network.sgen.at[7, 'p_mw'] = np.random.uniform(1, 3)
-            # self.network.sgen.at[8, 'p_mw'] = 0.5*np.random.uniform(2, 3)
-            # self.network.sgen.at[9, 'p_mw'] = np.random.uniform(0.1, 0.5)
+            
             self.network.sgen.at[10, 'p_mw'] = np.random.uniform(0.2, 3)
             self.network.sgen.at[11, 'p_mw'] = np.random.uniform(0, 1.5)
+            #for all buses scheme
+            # self.network.sgen.at[6, 'p_mw'] = 0.5*np.random.uniform(1, 2)
+            # self.network.sgen.at[7, 'p_mw'] = 0.2*np.random.uniform(1, 3)
+            # self.network.sgen.at[8, 'p_mw'] = 0.2*np.random.uniform(2, 3)
+            # self.network.sgen.at[9, 'p_mw'] = np.random.uniform(0.1, 0.5)
         
         else: #mixture (this is used only during testing)
             self.network.sgen['p_mw'] = 0.0
@@ -225,15 +256,20 @@ if __name__ == "__main__":
     # print(net.line)
     # print(net.trafo)
     # print(net.bus)
-    injection_bus = np.array([2, 7, 9])
+    # injection_bus = np.array([2, 7, 9])
+    injection_bus = np.array([1,2,3,4,5,6, 7, 8,9,10,11,12])
     env = IEEE13bus(net, injection_bus)
+    # print(env.reset0())
+    # for i in range(7):
+    #     state,_,_,_=env.step_load([0,0,0],0,0,i)
+    #     print(state)
     state_list = []
     for i in range(200):
         state = env.reset(i)
         state_list.append(state)
     state_list = np.array(state_list)
-    fig, axs = plt.subplots(1, 3, figsize=(15,3))
-    for i in range(3):
+    fig, axs = plt.subplots(1, 12, figsize=(15,3))
+    for i in range(12):
         axs[i].hist(state_list[:,i])
     plt.show()
     

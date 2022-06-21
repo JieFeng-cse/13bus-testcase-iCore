@@ -188,6 +188,8 @@ if __name__ == "__main__":
     # print(net.sgen)
     injection_bus = np.array([18, 21, 30, 45, 53])-1  
     env = VoltageCtrl_nonlinear(net, injection_bus)
+    # print(env.network.load)
+    # exit(0)
     state_list = []
     for i in range(200):
         state = env.reset(i)

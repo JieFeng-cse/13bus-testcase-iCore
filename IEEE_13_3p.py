@@ -80,8 +80,9 @@ class IEEE13bus3p(gym.Env):
         reward_sep = np.zeros(agent_num, )
         #just for ddpg
         for i in range(agent_num):
-            reward_sep[i] = float(-1.0*LA.norm(p_action[i],1) -1000*LA.norm(np.clip(self.state[i]-self.vmax, 0, np.inf),1)
+            reward_sep[i] = float(-50.0*LA.norm(p_action[i],1) -1000*LA.norm(np.clip(self.state[i]-self.vmax, 0, np.inf),1)
                            - 1000*LA.norm(np.clip(self.vmin-self.state[i], 0, np.inf),1))  
+        #safe: -1.0*LA.norm(p_action[i],1) 
         # reward_sep += reward    
         # state-transition dynamics
         action = action * 100 #from kVar to MVar
@@ -100,7 +101,7 @@ class IEEE13bus3p(gym.Env):
         
         if(np.min(self.state) > 0.95 and np.max(self.state)< 1.05):
             done = True
-            reward_sep += 100
+            # reward_sep += 100
         # if done:
         #     print('successful!')
         return self.state, reward, reward_sep, done
@@ -163,7 +164,7 @@ class IEEE13bus3p(gym.Env):
     def reset(self, seed=1): #sample different initial volateg conditions during training
         np.random.seed(seed)
         senario = np.random.choice([0,1])
-        senario = 0
+        # senario = 1
         self.network.init_sys()
         if(senario == 0):
             # Low voltage
@@ -199,7 +200,8 @@ class IEEE13bus3p(gym.Env):
     
 if __name__ == "__main__":
     # injection_bus = np.array([675,633,680])
-    injection_bus = np.array([633,634,671,645,646,692,675,611,652,670,632,680,684])
+    # bus 670 is actually a concentrated point load of the distributed load on line 632 to 671 located at 1/3 the distance from node 632
+    injection_bus = np.array([633,634,671,645,646,692,675,611,652,632,680,684])
     net, injection_bus_dict = create_13bus3p(injection_bus)    
     env = IEEE13bus3p(net, injection_bus_dict)
     state_list = []
@@ -228,8 +230,3 @@ if __name__ == "__main__":
     #     for j in range(len(injection_bus)):
     #         axs[j,i].plot(range(40),state_list[:,j,i])
     # plt.show()
-
-#5.29
-#current problem: stable DDPG has unbalanced power injection
-#not enough power for phase b for example
-#because when you are giving a power injection at bus a, then you are expericing a drop of voltage, so you gain some reward, although the voltage of phase b rised

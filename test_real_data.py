@@ -119,7 +119,7 @@ def plot_traj(p,q,pv_p):
     axs[0].plot(range(len(action_list)), q, label = f'Reactive Load', linewidth=1.5)
     axs[0].plot(range(len(action_list)), pv_p, label = f'Solar', linewidth=1.5)
     
-    np.save('ddpg_list.npy',state_list)
+    # np.save('ddpg_list.npy',state_list)
     # with open('ddpg_list.npy', 'rb') as f:
     #     state_list = np.load(f)
     for i in range(num_agent):    
@@ -151,8 +151,8 @@ def plot_traj(p,q,pv_p):
         state_list.append(next_state)
         last_action = np.copy(action)
         state = next_state
-    safe_name = []
-    np.save('sddpg_list.npy',state_list)
+    # safe_name = []
+    # np.save('sddpg_list.npy',state_list)
     # with open('sddpg_list.npy', 'rb') as f:
     #     state_list = np.load(f)
     for i in range(num_agent):    
@@ -160,17 +160,24 @@ def plot_traj(p,q,pv_p):
     axs[2].plot(range(len(action_list)), [0.95]*len(action_list), '--', color='k', linewidth=1)
     axs[2].plot(range(len(action_list)), [1.05]*len(action_list), '--', color='k', linewidth=1)
     # leg1 = plt.legend(safe_a_plt, safe_name, loc='lower left')
-    axs[0].legend(loc='upper left', prop={"size":13})
-    axs[1].legend(loc='lower right', prop={"size":13})
-    axs[2].legend(loc='lower right', prop={"size":13})
+    axs[0].legend(loc='upper left', prop={"size":10})
+    box = axs[1].get_position()
+    axs[1].set_position([box.x0, box.y0,
+                 box.width, box.height * 0.8])
+    box = axs[2].get_position()
+    axs[2].set_position([box.x0, box.y0,
+                 box.width, box.height * 0.8])
+    axs[1].legend(loc='upper center', bbox_to_anchor=(1.1, 1.4),
+          fancybox=True, shadow=True, ncol=6, prop={"size":10})
+    # axs[2].legend(loc='lower right', prop={"size":10},ncol=2)
     axs[0].set_xlabel('Time (Hour)')   
     axs[1].set_xlabel('Time (Hour)')  
     axs[2].set_xlabel('Time (Hour)')  
     # axs[2].get_yaxis().set_visible(False)
-    axs[1].set_yticks([0.90,0.95,1.00,1.05,1.10])
-    axs[1].set_yticklabels(['0.90','0.95','1.00','1.05','1.10'])
-    axs[2].set_yticks([0.90,0.95,1.00,1.05,1.10])
-    axs[2].set_yticklabels(['0.90','0.95','1.00','1.05','1.10'])
+    axs[1].set_yticks([0.95,1.00,1.05,1.10])
+    axs[1].set_yticklabels(['0.95','1.00','1.05','1.10'])
+    axs[2].set_yticks([0.95,1.00,1.05,1.10])
+    axs[2].set_yticklabels(['0.95','1.00','1.05','1.10'])
     axs[0].set_xticks(np.arange(0,len(action_list),3600))
     axs[0].set_xticklabels(['00:00','06:00','12:00','18:00','24:00'], fontsize=13)
     axs[1].set_xticks(np.arange(0,len(action_list),3600))

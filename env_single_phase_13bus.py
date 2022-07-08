@@ -77,22 +77,22 @@ class IEEE13bus(gym.Env):
         #         reward_sep[i] = float(-20*LA.norm(p_action[i],1) -100*LA.norm([np.clip(self.vmin-self.state[i], 0, np.inf)],1)) 
         #     elif self.state[i]>1.05:
         #         reward_sep[i] = float(-10*LA.norm(p_action[i],1) -115*LA.norm([np.clip(self.state[i]-self.vmax, 0, np.inf)],1)) 
-        # for i in range(agent_num):
-        #     if self.state[i]<0.95:
-        #         reward_sep[i] = float(-20*LA.norm(p_action[i],1) -100*LA.norm([np.clip(self.vmin-self.state[i], 0, np.inf)],1)) 
-        #     elif self.state[i]>1.05:
-        #         reward_sep[i] = float(-20*LA.norm(p_action[i],1) -100*LA.norm([np.clip(self.state[i]-self.vmax, 0, np.inf)],1)) 
-        # reward = np.sum(reward_sep)
         for i in range(agent_num):
-            if (self.state[i]>1.0 and self.state[i]<1.05):
-                reward_sep[i] = float(-0*LA.norm(p_action[i],1) -0*LA.norm([np.clip(self.state[i]-self.vmax, -np.inf, 0)],2)**2)   
-            elif (self.state[i]>0.95 and self.state[i]<1.0):
-                reward_sep[i] = float(-0*LA.norm(p_action[i],1) -0*LA.norm([np.clip(self.vmin-self.state[i], -np.inf, 0)],2)**2)   
-            elif self.state[i]<0.95:
-                reward_sep[i] = float(-1*LA.norm(p_action[i],1) -100*LA.norm([np.clip(self.vmin-self.state[i], 0, np.inf)],2)**2) 
+            if self.state[i]<0.95:
+                reward_sep[i] = float(-20*LA.norm(p_action[i],1) -100*LA.norm([np.clip(self.vmin-self.state[i], 0, np.inf)],1)) 
             elif self.state[i]>1.05:
-                reward_sep[i] = float(-1*LA.norm(p_action[i],1) -100*LA.norm([np.clip(self.state[i]-self.vmax, 0, np.inf)],2)**2) 
-        
+                reward_sep[i] = float(-20*LA.norm(p_action[i],1) -100*LA.norm([np.clip(self.state[i]-self.vmax, 0, np.inf)],1)) 
+        reward = np.sum(reward_sep)
+        # for i in range(agent_num):
+        #     if (self.state[i]>1.0 and self.state[i]<1.05):
+        #         reward_sep[i] = float(-0*LA.norm(p_action[i],1) -0*LA.norm([np.clip(self.state[i]-self.vmax, -np.inf, 0)],2)**2)   
+        #     elif (self.state[i]>0.95 and self.state[i]<1.0):
+        #         reward_sep[i] = float(-0*LA.norm(p_action[i],1) -0*LA.norm([np.clip(self.vmin-self.state[i], -np.inf, 0)],2)**2)   
+        #     elif self.state[i]<0.95:
+        #         reward_sep[i] = float(-1*LA.norm(p_action[i],1) -100*LA.norm([np.clip(self.vmin-self.state[i], 0, np.inf)],2)**2) 
+        #     elif self.state[i]>1.05:
+        #         reward_sep[i] = float(-1*LA.norm(p_action[i],1) -100*LA.norm([np.clip(self.state[i]-self.vmax, 0, np.inf)],2)**2) 
+        # reward = np.sum(reward_sep)
         # state-transition dynamics
         for i in range(len(self.injection_bus)):
             self.network.sgen.at[i, 'q_mvar'] = action[i] 
@@ -117,26 +117,55 @@ class IEEE13bus(gym.Env):
         
         #adjust power consumption at the load bus
         load_idx = [1,5,10]
-        for i in range(len(self.network.load)):
-            self.network.load.at[i, 'p_mw'] = load_p*0.05
-            self.network.load.at[i, 'q_mvar'] = load_q*0.05
+        # for i in range(len(self.network.load)):
+        self.network.load.at[0, 'p_mw'] = load_p*0.01
+        self.network.load.at[0, 'q_mvar'] = load_q*0.02
+        self.network.load.at[1, 'p_mw'] = load_p*0.03
+        self.network.load.at[1, 'q_mvar'] = load_q*0.01
+        self.network.load.at[2, 'p_mw'] = load_p*0.03
+        self.network.load.at[2, 'q_mvar'] = load_q*0.02
+        self.network.load.at[3, 'p_mw'] = load_p*0.01
+        self.network.load.at[3, 'q_mvar'] = load_q*0.01
+        self.network.load.at[4, 'p_mw'] = load_p*0.03
+        self.network.load.at[4, 'q_mvar'] = load_q*0.02
+        self.network.load.at[5, 'p_mw'] = load_p*0.02
+        self.network.load.at[5, 'q_mvar'] = load_q*0.01
+        self.network.load.at[6, 'p_mw'] = load_p*0.01
+        self.network.load.at[6, 'q_mvar'] = load_q*0.01
+        self.network.load.at[7, 'p_mw'] = load_p*0.03
+        self.network.load.at[7, 'q_mvar'] = load_q*0.02
+        self.network.load.at[8, 'p_mw'] = load_p*0.01
+        self.network.load.at[8, 'q_mvar'] = load_q*0.01
         # for i in range(len(self.injection_bus)):
-        #     self.network.load.at[load_idx[i], 'p_mw'] = load_p*0.1
-        #     self.network.load.at[load_idx[i], 'q_mvar'] = load_q*0.1
+        #     self.network.load.at[i, 'p_mw'] = load_p*0.1
+        #     self.network.load.at[i, 'q_mvar'] = load_q*0.1
         
            
         #adjust reactive power inj at the PV bus
         for i in range(len(self.injection_bus)):
-            self.network.sgen.at[i, 'q_mvar'] = action[i] 
+            self.network.sgen.at[i, 'q_mvar'] = action[i]
 
         #adjust reactive power inj at the PV bus
-        for i in range(len(self.injection_bus)):
-            self.network.sgen.at[i, 'p_mw'] = pv_p*0.1
+        # for i in range(len(self.injection_bus)):
+            # self.network.sgen.at[i, 'p_mw'] = pv_p*0.15
+            
         # self.network.sgen.at[0, 'p_mw'] = pv_p*0.4
         # self.network.sgen.at[1, 'p_mw'] = pv_p*0.4
         # self.network.sgen.at[2, 'p_mw'] = pv_p*0.4
         # self.network.sgen.at[4, 'p_mw'] = 0.2*pv_p
         # self.network.sgen.at[5, 'q_mvar'] = 0.3*pv_p
+        self.network.sgen.at[0, 'p_mw'] = pv_p*0.15
+        self.network.sgen.at[1, 'p_mw'] = pv_p*0.2
+        self.network.sgen.at[2, 'p_mw'] = pv_p*0.2
+        self.network.sgen.at[3, 'p_mw'] = pv_p*0.1
+        self.network.sgen.at[4, 'p_mw'] = 0.3*pv_p
+        self.network.sgen.at[5, 'p_mw'] = 0.1*pv_p
+        self.network.sgen.at[6, 'p_mw'] = pv_p*0.01
+        self.network.sgen.at[7, 'p_mw'] = pv_p*0.05
+        self.network.sgen.at[8, 'p_mw'] = pv_p*0.01
+        self.network.sgen.at[9, 'p_mw'] = pv_p*0.01
+        self.network.sgen.at[10, 'p_mw'] = pv_p*0.1
+        self.network.sgen.at[11, 'p_mw'] = pv_p*0.01
 
         pp.runpp(self.network, algorithm='bfsw', init = 'dc')
         
@@ -151,7 +180,7 @@ class IEEE13bus(gym.Env):
     def reset(self, seed=1): #sample different initial volateg conditions during training
         np.random.seed(seed)
         senario = np.random.choice([0,1])
-        # senario = 0
+        # senario = 1
         if(senario == 0):#low voltage 
            # Low voltage
             self.network.sgen['p_mw'] = 0.0

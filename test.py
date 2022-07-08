@@ -25,7 +25,7 @@ import argparse
 from environment_single_phase import create_56bus, VoltageCtrl_nonlinear
 from env_single_phase_13bus import IEEE13bus, create_13bus
 from env_single_phase_123bus import IEEE123bus, create_123bus
-from safeDDPG import ValueNetwork, SafePolicyNetwork, DDPG, ReplayBuffer, ReplayBufferPI, PolicyNetwork, SafePolicy3phase
+from safeDDPG import ValueNetwork, SafePolicyNetwork, DDPG, ReplayBuffer, ReplayBufferPI, PolicyNetwork, SafePolicy3phase, LinearPolicy
 from IEEE_13_3p import IEEE13bus3p, create_13bus3p
 
 
@@ -69,10 +69,11 @@ if args.env_name == '13bus3p':
     # injection_bus = np.array([675,633,680])
     injection_bus = np.array([633,634,671,645,646,692,675,611,652,632,680,684])
     pp_net, injection_bus_dict = create_13bus3p(injection_bus) 
-    max_ac = 0.3
+    max_ac = 0.4
     env = IEEE13bus3p(pp_net,injection_bus_dict)
     num_agent = len(injection_bus)
     ph_num=3
+    # slope = 3
 
 if ph_num == 3:
     type_name = 'three-phase'
@@ -86,6 +87,7 @@ hidden_dim = 100
 
 ddpg_agent_list = []
 safe_ddpg_agent_list = []
+linear_agent_list = []
 
 for i in range(num_agent):
     if not ph_num == 3:
@@ -104,27 +106,39 @@ for i in range(num_agent):
     ddpg_agent = DDPG(policy_net=ddpg_policy_net, value_net=ddpg_value_net,
                  target_policy_net=ddpg_policy_net, target_value_net=ddpg_value_net)
     
+    linear_value_net  = ValueNetwork(obs_dim=obs_dim, action_dim=action_dim, hidden_dim=hidden_dim).to(device)  
+    linear_policy_net = LinearPolicy(env,ph_num).to(device)    
+
+    linear_agent = DDPG(policy_net=linear_policy_net, value_net=linear_value_net,
+                 target_policy_net=linear_policy_net, target_value_net=linear_value_net)
+    
     safe_ddpg_agent = DDPG(policy_net=safe_ddpg_policy_net, value_net=safe_ddpg_value_net,
                  target_policy_net=safe_ddpg_policy_net, target_value_net=safe_ddpg_value_net)    
     
     ddpg_agent_list.append(ddpg_agent)
     safe_ddpg_agent_list.append(safe_ddpg_agent)
+    linear_agent_list.append(linear_agent)
 
 for i in range(num_agent):
-    ddpg_valuenet_dict = torch.load(f'checkpoints/{type_name}/{args.env_name}/ddpg/value_net_checkpoint_a{i}.pth')
+    # ddpg_valuenet_dict = torch.load(f'checkpoints/{type_name}/{args.env_name}/ddpg/value_net_checkpoint_a{i}.pth')
     ddpg_policynet_dict = torch.load(f'checkpoints/{type_name}/{args.env_name}/ddpg/policy_net_checkpoint_a{i}.pth')
-    ddpg_agent_list[i].value_net.load_state_dict(ddpg_valuenet_dict)
+    # ddpg_agent_list[i].value_net.load_state_dict(ddpg_valuenet_dict)
     ddpg_agent_list[i].policy_net.load_state_dict(ddpg_policynet_dict)
 
+    # linear_valuenet_dict = torch.load(f'checkpoints/{type_name}/{args.env_name}/linear/value_net_checkpoint_a{i}.pth')
+    linear_policynet_dict = torch.load(f'checkpoints/{type_name}/{args.env_name}/linear/policy_net_checkpoint_a{i}.pth')
+    # linear_agent_list[i].value_net.load_state_dict(ddpg_valuenet_dict)
+    linear_agent_list[i].policy_net.load_state_dict(linear_policynet_dict)
+
     if ph_num == 3:
-        safe_ddpg_valuenet_dict = torch.load(f'checkpoints/{type_name}/{args.env_name}/safe-ddpg/{args.safe_type}/value_net_checkpoint_a{i}.pth')
+        # safe_ddpg_valuenet_dict = torch.load(f'checkpoints/{type_name}/{args.env_name}/safe-ddpg/{args.safe_type}/value_net_checkpoint_a{i}.pth')
         safe_ddpg_policynet_dict = torch.load(f'checkpoints/{type_name}/{args.env_name}/safe-ddpg/{args.safe_type}/policy_net_checkpoint_a{i}.pth')
-        safe_ddpg_agent_list[i].value_net.load_state_dict(safe_ddpg_valuenet_dict)
+        # safe_ddpg_agent_list[i].value_net.load_state_dict(safe_ddpg_valuenet_dict)
         safe_ddpg_agent_list[i].policy_net.load_state_dict(safe_ddpg_policynet_dict)
     else:
-        safe_ddpg_valuenet_dict = torch.load(f'checkpoints/{type_name}/{args.env_name}/safe-ddpg/value_net_checkpoint_a{i}.pth')
+        # safe_ddpg_valuenet_dict = torch.load(f'checkpoints/{type_name}/{args.env_name}/safe-ddpg/value_net_checkpoint_a{i}.pth')
         safe_ddpg_policynet_dict = torch.load(f'checkpoints/{type_name}/{args.env_name}/safe-ddpg/policy_net_checkpoint_a{i}.pth')
-        safe_ddpg_agent_list[i].value_net.load_state_dict(safe_ddpg_valuenet_dict)
+        # safe_ddpg_agent_list[i].value_net.load_state_dict(safe_ddpg_valuenet_dict)
         safe_ddpg_agent_list[i].policy_net.load_state_dict(safe_ddpg_policynet_dict)
 def plot_action():
     
@@ -203,7 +217,7 @@ def plot_traj():
         state_list.append(next_state)
         last_action = np.copy(action)
         state = next_state
-    fig, axs = plt.subplots(1, 2, figsize=(16,9))
+    fig, axs = plt.subplots(1, 2, figsize=(16,7))
     # lb = axs[0].plot(range(len(action_list)), [0.95]*len(action_list), linestyle='--', dashes=(5, 10), color='g', label='lower bound')
     # ub = axs[0].plot(range(len(action_list)), [1.05]*len(action_list), linestyle='--', dashes=(5, 10), color='r', label='upper bound')
     for i in range(num_agent):    
@@ -240,18 +254,19 @@ def plot_traj():
         state = next_state
     safe_name = []
     for i in range(num_agent):    
-        safes=axs[0].plot(range(len(action_list)), np.array(state_list)[:len(action_list),i], '-', label = f'stable-DDPG at {injection_bus[i]}', linewidth=2)
-        safea=axs[1].plot(range(len(action_list)), np.array(action_list)[:,i], label = f'stable-DDPG at {injection_bus[i]}', linewidth=2)
+        safes=axs[0].plot(range(len(action_list)), np.array(state_list)[:len(action_list),i], '-', label = f'Stable-DDPG at {injection_bus[i]}', linewidth=2)
+        safea=axs[1].plot(range(len(action_list)), np.array(action_list)[:,i], label = f'Stable-DDPG at {injection_bus[i]}', linewidth=2)
         safe_plt.append(safes)
-        safe_name.append(f'stable-DDPG at {injection_bus[i]}')
+        safe_name.append(f'Stable-DDPG at {injection_bus[i]}')
         safe_a_plt.append(safea)
     # leg1 = plt.legend(safe_a_plt, safe_name, loc='lower left')
     axs[0].legend(loc='upper right', prop={"size":20})
     axs[1].legend(loc='lower left', prop={"size":20})
-    axs[0].set_xlabel('Iteretion Steps')   
-    axs[1].set_xlabel('Iteretion Steps')  
+    axs[0].set_xlabel('Steps')   
+    axs[1].set_xlabel('Steps')  
     axs[0].set_ylabel('Bus Voltage [p.u.]')   
     axs[1].set_ylabel('Reactive Power Injection [MVar]')  
+    plt.tight_layout()
     plt.show()
 
 #test success rate, voltage violation after 40 steps
@@ -276,22 +291,23 @@ def test_suc_rate(algm, step_num=60):
                     phases = env.injection_bus[env.injection_bus_str[i]]
                     id = get_id(phases)
                     if algm == 'linear':
-                        action_agent = (np.maximum(state[i]-1.03, 0)-np.maximum(0.97-state[i], 0)).reshape((ph_num,))*slope
+                        action_tmp = linear_agent_list[i].policy_net.get_action(np.asarray([state[i,id]])) 
+                        action_tmp = action_tmp.reshape(len(id),)  
                     elif algm == 'safe-ddpg':
                         action_tmp = safe_ddpg_agent_list[i].policy_net.get_action(np.asarray([state[i,id]])) 
                         action_tmp = action_tmp.reshape(len(id),)  
                     elif algm == 'ddpg':
                         action_tmp = ddpg_agent_list[i].policy_net.get_action(np.asarray([state[i,id]])) 
                         action_tmp = action_tmp.reshape(len(id),)  
-                    if algm != 'linear':
-                        for p in range(len(phases)):
-                            action_agent[id[p]]=action_tmp[p]
+                    # if algm != 'linear':
+                    for p in range(len(phases)):
+                        action_agent[id[p]]=action_tmp[p]
                     action_agent = np.clip(action_agent, -max_ac, max_ac) 
                     action.append(action_agent)
                 # sample action according to the current policy and exploration noise
                 else:
                     if algm == 'linear':
-                        action_agent = (np.maximum(state[i]-1.03, 0)-np.maximum(0.97-state[i], 0)).reshape((1,))*slope
+                        action_agent = linear_agent_list[i].policy_net.get_action(np.asarray([state[i]])) 
                     elif algm == 'safe-ddpg':
                         action_agent = safe_ddpg_agent_list[i].policy_net.get_action(np.asarray([state[i]]))
                     elif algm == 'ddpg':
@@ -315,9 +331,9 @@ def test_suc_rate(algm, step_num=60):
             last_action = np.copy(action)
             state = next_state
         
-        # if not done:
-        #     final_step_list.append(step_num)
-        #     control_cost_list.append(np.sum(np.asarray(control_action)))
+        if not done:
+            final_step_list.append(step_num)
+            control_cost_list.append(np.sum(np.asarray(control_action)))
         final_state_list.append(next_state)
     print(f'result for {algm}')
     print(success_num)
@@ -329,7 +345,65 @@ def test_suc_rate(algm, step_num=60):
     # plt.title('safe_ddpg, high voltage')
     # plt.show()
     return final_state_list
+
 def plot_bar(num_agent):
+    print('max')
+    xlab = 'Voltage Violation (high voltage)'
+    plt.rcParams['font.size'] = '11'
+    
+    plt.figure(figsize=(3.96,2.87),dpi=300)
+    plt.gcf().subplots_adjust(bottom=0.17,left=0.15)
+    marks=[1.0,0,0,0,0]
+    bars=('Stable','5-7%','7-9%','9-10%','>10%')
+    y=np.arange(len(bars))
+    plt.bar(y+0.2,marks, 0.4,color='b',label='Stable-DDPG')
+    state_list = test_suc_rate('ddpg',step_num=100)
+    state_list = np.asarray(state_list)
+    state_list = np.abs(state_list-1)
+    # print(state_list.shape)
+    
+    # np.savetxt('state13.txt',state_list)
+    # state_list = np.loadtxt('state123h.txt')
+    if ph_num == 3:
+        state_list_3p = []
+        for i in range(num_agent):
+            phases = env.injection_bus[env.injection_bus_str[i]]
+            id = get_id(phases)
+            if len(id)>1:
+                # print(np.max(state_list[:,i,id],axis=1).shape)
+                state_list_3p.append(np.reshape(np.max(state_list[:,i,id],axis=1), (len(state_list),1)))
+            else:
+                state_list_3p.append(np.reshape(state_list[:,i,id], (len(state_list),1)))
+        state_list_3p = np.concatenate(state_list_3p,axis=1)
+    
+    # print(state_list_3p.shape)
+    # exit(0)
+    if ph_num == 3:
+        state_list = state_list_3p
+    state_list = np.max(state_list,axis=1)
+    # state_list = np.abs(state_list-1)
+    marks = [0,0,0,0,0]
+    marks[0]=np.sum(state_list<0.05)
+    # print(state)
+    marks[1]=np.sum(state_list<0.07)-marks[0]
+    marks[2]=np.sum(state_list<0.09)-marks[1]-marks[0]
+    marks[3]=np.sum(state_list<0.1)-marks[1]-marks[0]-marks[2]
+    if ph_num == 3:
+        num_agent = state_list_3p.shape[1]
+    marks[4]=len(state_list)-marks[1]-marks[0]-marks[2]-marks[3]
+    marks = np.array(marks)/len(state_list)
+    print(marks)
+    plt.bar(y-0.2,marks,0.4,color='r',label='DDPG')
+    
+    plt.xticks(y,bars)
+    plt.xlabel(xlab)
+    plt.ylabel('Frequency')
+    plt.legend(loc='upper right')
+    plt.show()
+
+def plot_bar_avg(num_agent):
+    print('avg')
+    xlab = 'Voltage Violation (low voltage)'
     plt.rcParams['font.size'] = '11'
     
     plt.figure(figsize=(3.96,2.87),dpi=300)
@@ -365,7 +439,7 @@ def plot_bar(num_agent):
     plt.bar(y-0.2,marks,0.4,color='r',label='DDPG')
     
     plt.xticks(y,bars)
-    plt.xlabel('Voltage Violation (high voltage)')
+    plt.xlabel(xlab)
     plt.ylabel('Frequency')
     plt.legend(loc='upper right')
     plt.show()
@@ -492,13 +566,48 @@ def plot_action_selcted(selected=[1,5,9]):
             safe_ddpg_action = np.clip(safe_ddpg_action, -max_ac, max_ac)
             safe_ddpg_a_array[j] = -safe_ddpg_action
         if ph_num == 1:
-            axs[indx].plot(s_array, safe_ddpg_a_array, label = f'sDDPG', linewidth=2)
+            axs[indx].plot(s_array, safe_ddpg_a_array, label = f'Stable-DDPG', linewidth=2)
         else:
             phases = env.injection_bus[env.injection_bus_str[i]]
             id = get_id(phases)
             for cnt, ph_id in enumerate(id):
                 clr = color_set[ph_id]
-                axs[indx].plot(s_array, safe_ddpg_a_array[:,ph_id], label = f'sDDPG-{phases[cnt]}', linewidth=2, color=clr)
+                axs[indx].plot(s_array, safe_ddpg_a_array[:,ph_id], label = f'Stable-DDPG-{phases[cnt]}', linewidth=2, color=clr)
+    for indx,i in enumerate(selected):
+        # plot policy
+        N = 40
+        s_array = np.zeros(N,)
+        
+        a_array_baseline = np.zeros(N,)
+        linear_a_array = np.zeros((N,ph_num))
+        
+        for j in range(N):
+            if ph_num == 1:
+                state = np.array([0.8+0.01*j])
+                s_array[j] = state
+            else:
+                state = np.resize(np.array([0.8+0.01*j]),(3))
+                s_array[j] = state[0] 
+            
+            if ph_num == 3: 
+                safe_ddpg_action = np.zeros(3)
+                phases = env.injection_bus[env.injection_bus_str[i]]
+                id = get_id(phases)
+                action_tmp = linear_agent_list[i].policy_net.get_action(np.asarray([state[id]])) 
+                action_tmp = action_tmp.reshape(len(id),)  
+                for p in range(len(phases)):
+                    safe_ddpg_action[id[p]]=action_tmp[p]
+            else:          
+                safe_ddpg_action = linear_agent_list[i].policy_net.get_action(np.asarray([state]))
+            safe_ddpg_action = np.clip(safe_ddpg_action, -max_ac, max_ac)
+            linear_a_array[j] = -safe_ddpg_action
+        if ph_num == 1:
+            axs[indx].plot(s_array, linear_a_array, ':', label = f'Linear', linewidth=2, color='r')
+        else:
+            phases = env.injection_bus[env.injection_bus_str[i]]
+            id = get_id(phases)
+            axs[indx].plot(s_array, linear_a_array[:,id[0]], ':', label = f'Linear', linewidth=2, color='r')
+                
     for indx,i in enumerate(selected):
         # plot policy
         N = 40
@@ -516,7 +625,7 @@ def plot_action_selcted(selected=[1,5,9]):
                 state = np.resize(np.array([0.8+0.01*j]),(3))
                 s_array[j] = state[0] 
 
-            action_baseline = (np.maximum(state[0]-1.03, 0)-np.maximum(0.97-state[0], 0)).reshape((1,))*slope
+            # action_baseline = (np.maximum(state[0]-1.03, 0)-np.maximum(0.97-state[0], 0)).reshape((1,))*slope
 
             if ph_num == 3: 
                 ddpg_action = np.zeros(3)
@@ -529,8 +638,8 @@ def plot_action_selcted(selected=[1,5,9]):
             else:          
                 ddpg_action = ddpg_agent_list[i].policy_net.get_action(np.asarray([state]))
             ddpg_action = np.clip(ddpg_action, -max_ac, max_ac)
-            action_baseline = np.clip(action_baseline, -max_ac, max_ac)
-            a_array_baseline[j] = -action_baseline[0]
+            # action_baseline = np.clip(action_baseline, -max_ac, max_ac)
+            # a_array_baseline[j] = -action_baseline[0]
             ddpg_a_array[j] = -ddpg_action
         if indx != 0:
             axs[indx].get_yaxis().set_visible(False)
@@ -543,11 +652,23 @@ def plot_action_selcted(selected=[1,5,9]):
             for cnt, ph_id in enumerate(id):
                 clr = color_set[ph_id+3]
                 axs[indx].plot(s_array, ddpg_a_array[:,ph_id], '--', label = f'DDPG-{phases[cnt]}', linewidth=2, color=clr)
-        axs[indx].plot(s_array, a_array_baseline, ':', label = 'Linear',color='r', linewidth=2)
-        axs[indx].legend(loc='lower left', prop={"size":13})
+        # axs[indx].plot(s_array, a_array_baseline, ':', label = 'Linear',color='r', linewidth=2)
+        
+        # axs[indx].legend(loc='lower left', prop={"size":13})
         axs[indx].set_xlabel('voltage magnitude [p.u.]', size=18)   
         axs[indx].set_ylabel(f'q change [MVar]', size=18) 
         # plt.yticks(size=1)
+    box = axs[0].get_position()
+    axs[0].set_position([box.x0-0.15*box.width, box.y0,
+                    box.width* 0.9, box.height])
+    box = axs[1].get_position()
+    axs[1].set_position([box.x0-0.19*box.width, box.y0,
+                    box.width* 0.9, box.height])
+    box = axs[2].get_position()
+    axs[2].set_position([box.x0-0.22*box.width, box.y0,
+                    box.width* 0.9, box.height])
+    axs[0].legend(loc='right', bbox_to_anchor=(4.45, 0.4),
+        fancybox=True, shadow=True, ncol=1, prop={"size":13})
     plt.show()
 
 def get_id(phases):
@@ -576,12 +697,14 @@ if __name__ == "__main__":
     # test_suc_rate('safe-ddpg',step_num=100) #safe-ddpg
     # test_suc_rate('linear',step_num=100)
     # test_suc_rate('ddpg',step_num=100)
-    # plot_bar(len(injection_bus))
+    # plot_bar_avg(len(injection_bus))
+    plot_bar(len(injection_bus))
     # test_suc_rate('linear')
     # plot_action_selcted()
     # plot_bar(len(injection_bus))
     # plot_traj_123()
     # plot_action_selcted([1,4,9]) #13b3p
+    # plot_action_selcted([2,4,10]) #13b3p
     # plot_action_selcted([2,5,10]) #123b
     # plot_action_selcted([0,1,2])
-    plot_traj()
+    # plot_traj()

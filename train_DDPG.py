@@ -27,7 +27,7 @@ from env_single_phase_13bus import IEEE13bus, create_13bus
 from env_single_phase_123bus import IEEE123bus, create_123bus
 from env_three_phase_eu import Three_Phase_EU, create_eu_lv
 from IEEE_13_3p import IEEE13bus3p, create_13bus3p
-from safeDDPG import ValueNetwork, SafePolicyNetwork, DDPG, ReplayBuffer, ReplayBufferPI, PolicyNetwork, SafePolicy3phase, StablePolicy3phase
+from safeDDPG import ValueNetwork, SafePolicyNetwork, DDPG, ReplayBuffer, ReplayBufferPI, PolicyNetwork, SafePolicy3phase, StablePolicy3phase, LinearPolicy
 
 use_cuda = torch.cuda.is_available()
 device   = torch.device("cuda" if use_cuda else "cpu")
@@ -67,7 +67,7 @@ def plot_policy(agent_list, episode):
 Create Agent list and replay buffer
 """
 vlr = 2e-4
-plr = 1e-4
+plr = 5e-5
 ph_num = 1
 max_ac = 0.3
 if args.env_name == '56bus':
@@ -107,7 +107,7 @@ if args.env_name == '13bus3p':
     if args.algorithm == 'safe-ddpg':
         plr = 1e-4
     if args.algorithm == 'ddpg':
-        plr = 1e-5
+        plr = 5e-5
 
 
 
@@ -139,6 +139,9 @@ for i in range(num_agent):
     # elif args.algorithm == 'safe-ddpg' and ph_num == 3 and args.safe_type == 'dd':
     #     policy_net = StablePolicy3phase(env=env, obs_dim=obs_dim, action_dim=action_dim, hidden_dim=hidden_dim).to(device)
     #     target_policy_net = StablePolicy3phase(env=env, obs_dim=obs_dim, action_dim=action_dim, hidden_dim=hidden_dim).to(device)
+    elif args.algorithm == 'linear':
+        policy_net = LinearPolicy(env,ph_num)
+        target_policy_net = LinearPolicy(env,ph_num)
     else:
         policy_net = PolicyNetwork(env=env, obs_dim=obs_dim, action_dim=action_dim, hidden_dim=hidden_dim).to(device)
         target_policy_net = PolicyNetwork(env=env, obs_dim=obs_dim, action_dim=action_dim, hidden_dim=hidden_dim).to(device)
@@ -198,27 +201,27 @@ if (FLAG ==0):
 
 elif (FLAG ==1):
     # training episode
-    # for i in range(num_agent):
-    #     if ph_num == 3 and args.algorithm=='safe-ddpg':
-    #         valuenet_dict = torch.load(f'checkpoints/{type_name}/{args.env_name}/{args.algorithm}/{args.safe_type} copy/value_net_checkpoint_a{i}.pth')
-    #         policynet_dict = torch.load(f'checkpoints/{type_name}/{args.env_name}/{args.algorithm}/{args.safe_type} copy/policy_net_checkpoint_a{i}.pth')
-    #     else:
-    #         valuenet_dict = torch.load(f'checkpoints/{type_name}/{args.env_name}/{args.algorithm} copy/value_net_checkpoint_a{i}.pth')
-    #         policynet_dict = torch.load(f'checkpoints/{type_name}/{args.env_name}/{args.algorithm} copy/policy_net_checkpoint_a{i}.pth')
-    #     agent_list[i].value_net.load_state_dict(valuenet_dict)
-    #     agent_list[i].policy_net.load_state_dict(policynet_dict) 
-    #     for target_param, param in zip(agent_list[i].target_value_net.parameters(), agent_list[i].value_net.parameters()):
-    #         target_param.data.copy_(param.data)
+    for i in range(num_agent):
+        if ph_num == 3 and args.algorithm=='safe-ddpg':
+            valuenet_dict = torch.load(f'checkpoints/{type_name}/{args.env_name}/{args.algorithm}/{args.safe_type} copy/value_net_checkpoint_a{i}.pth')
+            policynet_dict = torch.load(f'checkpoints/{type_name}/{args.env_name}/{args.algorithm}/{args.safe_type} copy/policy_net_checkpoint_a{i}.pth')
+        else:
+            valuenet_dict = torch.load(f'checkpoints/{type_name}/{args.env_name}/{args.algorithm} copy/value_net_checkpoint_a{i}.pth')
+            policynet_dict = torch.load(f'checkpoints/{type_name}/{args.env_name}/{args.algorithm} copy/policy_net_checkpoint_a{i}.pth')
+        agent_list[i].value_net.load_state_dict(valuenet_dict)
+        agent_list[i].policy_net.load_state_dict(policynet_dict) 
+        for target_param, param in zip(agent_list[i].target_value_net.parameters(), agent_list[i].value_net.parameters()):
+            target_param.data.copy_(param.data)
 
-    #     for target_param, param in zip(agent_list[i].target_policy_net.parameters(), agent_list[i].policy_net.parameters()):
-    #         target_param.data.copy_(param.data)
+        for target_param, param in zip(agent_list[i].target_policy_net.parameters(), agent_list[i].policy_net.parameters()):
+            target_param.data.copy_(param.data)
 
     if args.algorithm == 'safe-ddpg':
         # num_episodes = 200    #13-3p
         num_episodes = 400
     else:
         # num_episodes = 700 #123 2000 13-3p 700
-        num_episodes = 1000
+        num_episodes = 400
 
     # trajetory length each episode
     num_steps = 30  
@@ -306,7 +309,7 @@ elif (FLAG ==1):
 
                 if(done):
                     episode_reward += reward  
-                    break
+                    # break
                 else:
                     state = np.copy(next_state)
                     episode_reward += reward    
@@ -330,7 +333,7 @@ elif (FLAG ==1):
 
 else:
     raise ValueError("Model loading optition does not exist!")
-torch.save(torch.tensor(rewards),'rewards_sddpg13.pt')
+torch.save(torch.tensor(rewards),'rewards_ddpg_q.pt')
 print(torch.tensor(rewards).shape)
 
 # title = ['Bus 18', 'Bus 21', 'Bus 30', 'Bus 45', 'Bus 53']
@@ -350,15 +353,6 @@ if args.status == 'train':
         plt.title('bus 0')
         plt.savefig('bus0.png')
         plt.show()
-
-
-# check_buffer = replay_buffer_list[1]
-# buffer_len = replay_buffer_list[1].__len__()
-# state, action, last_action, reward, next_state, done = replay_buffer_list[1].sample(buffer_len-1)
-# plt.scatter(action,reward)
-# plt.title('bus 1')
-# plt.savefig('bus1.png')
-# plt.show()
 
 
 fig, axs = plt.subplots(1, num_agent, figsize=(15,3))

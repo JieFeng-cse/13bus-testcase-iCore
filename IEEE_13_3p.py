@@ -79,9 +79,16 @@ class IEEE13bus3p(gym.Env):
         agent_num = len(self.injection_bus)
         reward_sep = np.zeros(agent_num, )
         #just for ddpg
+        p_action = np.array(p_action)
         for i in range(agent_num):
-            reward_sep[i] = float(-50.0*LA.norm(p_action[i],1) -1000*LA.norm(np.clip(self.state[i]-self.vmax, 0, np.inf),1)
-                           - 1000*LA.norm(np.clip(self.vmin-self.state[i], 0, np.inf),1))  
+            for j in range(3):
+                if self.state[i,j]<0.95:
+                    reward_sep[i] +=float(-50.0*LA.norm([p_action[i,j]],1)-1000*LA.norm(np.clip([self.state[i,j]-self.vmax], 0, np.inf),2)**2
+                    -1000*LA.norm(np.clip([self.vmin-self.state[i,j]], 0, np.inf),2)**2)  
+                elif self.state[i,j]>1.05:
+                    reward_sep[i] +=float(-50.0*LA.norm([p_action[i,j]],1)-1000*LA.norm(np.clip([self.state[i,j]-self.vmax], 0, np.inf),2)**2
+                    -1000*LA.norm(np.clip([self.vmin-self.state[i,j]], 0, np.inf),2)**2)  
+                           
         #safe: -1.0*LA.norm(p_action[i],1) 
         # reward_sep += reward    
         # state-transition dynamics
@@ -109,7 +116,7 @@ class IEEE13bus3p(gym.Env):
     def reset_3b(self, seed=1): #only 3 buses are included
         np.random.seed(seed)
         senario = np.random.choice([0,1])
-        senario = 1
+        # senario = 1
         self.network.init_sys()
         if(senario == 0):
             # Low voltage
@@ -169,8 +176,8 @@ class IEEE13bus3p(gym.Env):
         if(senario == 0):
             # Low voltage
             bus_a_kw = -100*np.random.uniform(2, 4.5)
-            bus_b_kw = -100*np.random.uniform(3, 5.5)
-            bus_c_kw = -100*np.random.uniform(2.5, 4.5)
+            bus_b_kw = -100*np.random.uniform(3, 5)
+            bus_c_kw = -100*np.random.uniform(2, 4)
             for idx in self.injection_bus_str:
                 for phase in self.injection_bus[idx]:
                     if phase == 'a':

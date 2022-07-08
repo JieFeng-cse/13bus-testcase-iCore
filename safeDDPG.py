@@ -463,6 +463,31 @@ class PolicyNetwork(nn.Module):
         action = self.forward(state)
         return action.detach().cpu().numpy()[0]
 
+# linear
+class LinearPolicy(nn.Module):
+    def __init__(self, env, ph_num, init_w=3e-3):
+        super(LinearPolicy, self).__init__()
+        use_cuda = torch.cuda.is_available()
+        self.device   = torch.device("cuda" if use_cuda else "cpu")
+
+        self.env = env
+        slope =torch.ones(1, requires_grad=True).to(self.device)
+        self.slope = torch.nn.Parameter(slope)
+        self.ph_num = ph_num
+
+    def forward(self, state):
+        state.requires_grad = True
+        # state = state-1
+        # print(state.shape)
+        x = (torch.maximum(state-1.03, torch.zeros_like(state).to(self.device))-torch.maximum(0.97-state, torch.zeros_like(state).to(self.device)))*torch.square(self.slope)
+        return x
+
+    def get_action(self, state):
+        state = torch.FloatTensor(state).unsqueeze(0).to(self.device)
+        action = self.forward(state)
+        return action.detach().cpu().numpy()[0]
+
+
 # value network
 class ValueNetwork(nn.Module):
     def __init__(self, obs_dim, action_dim, hidden_dim, init_w=3e-3):
@@ -473,9 +498,9 @@ class ValueNetwork(nn.Module):
 
         self.linear3.weight.data.uniform_(-init_w, init_w)
         self.linear3.bias.data.uniform_(-init_w, init_w)
-        # self.bn1 = nn.BatchNorm1d(hidden_dim)
-        # self.bn2 = nn.BatchNorm1d(hidden_dim)
-        # self.bn3 = nn.BatchNorm1d(1)
+        self.bn1 = nn.BatchNorm1d(hidden_dim)
+        self.bn2 = nn.BatchNorm1d(hidden_dim)
+        self.bn3 = nn.BatchNorm1d(1)
 
     def forward(self, state, action):
         x = torch.cat((state, action), dim=1)

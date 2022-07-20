@@ -180,29 +180,29 @@ class SafePolicyNetwork(nn.Module):
         self.z = torch.nn.Parameter(torch.rand(action_dim, self.hidden_dim), requires_grad=True)
         
     def forward(self, state):
-        self.w_plus=torch.matmul(torch.square(self.q), self.w_recover)
+        self.w_plus=torch.matmul(torch.square(self.q.double()), self.w_recover.double())
         
-        self.w_minus=torch.matmul(-torch.square(self.q), self.w_recover)
+        self.w_minus=torch.matmul(-torch.square(self.q.double()), self.w_recover.double())
         
         b = self.b.data
-        b = b.clamp(min=0)
+        b = b.clamp(min=0).double()
         b = self.scale*b/torch.norm(b, 1)
         self.b.data = b
         
         #maybe this part is wrong?
         c = self.c.data
-        c = c.clamp(min=0)
+        c = c.clamp(min=0).double()
         c = self.scale*c/torch.norm(c, 1)
         self.c.data = c
         
-        self.b_plus=torch.matmul(-self.b, self.b_recover) - torch.tensor(self.env.vmax-0.02)
-        self.b_minus=torch.matmul(-self.b, self.b_recover) + torch.tensor(self.env.vmin+0.02)
+        self.b_plus=torch.matmul(-self.b, self.b_recover.double()) - torch.tensor(self.env.vmax-0.02)
+        self.b_minus=torch.matmul(-self.b, self.b_recover.double()) + torch.tensor(self.env.vmin+0.02)
         
-        self.nonlinear_plus = torch.matmul(F.relu(torch.matmul(state, self.select_w)
+        self.nonlinear_plus = torch.matmul(F.relu(torch.matmul(state.double(), self.select_w.double())
                                                   + self.b_plus.view(1, self.hidden_dim)),
                                            torch.transpose(self.w_plus, 0, 1))
         
-        self.nonlinear_minus = torch.matmul(F.relu(torch.matmul(state, self.select_wneg)
+        self.nonlinear_minus = torch.matmul(F.relu(torch.matmul(state.double(), self.select_wneg.double())
                                                    + self.b_minus.view(1, self.hidden_dim)),
                                             torch.transpose(self.w_minus, 0, 1))
         
@@ -498,9 +498,9 @@ class ValueNetwork(nn.Module):
 
         self.linear3.weight.data.uniform_(-init_w, init_w)
         self.linear3.bias.data.uniform_(-init_w, init_w)
-        self.bn1 = nn.BatchNorm1d(hidden_dim)
-        self.bn2 = nn.BatchNorm1d(hidden_dim)
-        self.bn3 = nn.BatchNorm1d(1)
+        # self.bn1 = nn.BatchNorm1d(hidden_dim)
+        # self.bn2 = nn.BatchNorm1d(hidden_dim)
+        # self.bn3 = nn.BatchNorm1d(1)
 
     def forward(self, state, action):
         x = torch.cat((state, action), dim=1)

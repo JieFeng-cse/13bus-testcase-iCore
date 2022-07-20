@@ -67,7 +67,7 @@ def plot_policy(agent_list, episode):
 Create Agent list and replay buffer
 """
 vlr = 2e-4
-plr = 5e-5
+plr = 1e-4
 ph_num = 1
 max_ac = 0.3
 if args.env_name == '56bus':
@@ -78,7 +78,7 @@ if args.env_name == '56bus':
 if args.env_name == '13bus':
     pp_net = create_13bus()
     injection_bus = np.array([2, 7, 9])
-    # injection_bus = np.array([1,2,3,4,5,6, 7, 8,9,10,11,12])
+    # injection_bus = np.array([1,2,3,4,5,6,7,8,9,10,11,12])
     env = IEEE13bus(pp_net, injection_bus)
     num_agent = len(injection_bus)
 if args.env_name == '123bus':
@@ -201,27 +201,27 @@ if (FLAG ==0):
 
 elif (FLAG ==1):
     # training episode
-    for i in range(num_agent):
-        if ph_num == 3 and args.algorithm=='safe-ddpg':
-            valuenet_dict = torch.load(f'checkpoints/{type_name}/{args.env_name}/{args.algorithm}/{args.safe_type} copy/value_net_checkpoint_a{i}.pth')
-            policynet_dict = torch.load(f'checkpoints/{type_name}/{args.env_name}/{args.algorithm}/{args.safe_type} copy/policy_net_checkpoint_a{i}.pth')
-        else:
-            valuenet_dict = torch.load(f'checkpoints/{type_name}/{args.env_name}/{args.algorithm} copy/value_net_checkpoint_a{i}.pth')
-            policynet_dict = torch.load(f'checkpoints/{type_name}/{args.env_name}/{args.algorithm} copy/policy_net_checkpoint_a{i}.pth')
-        agent_list[i].value_net.load_state_dict(valuenet_dict)
-        agent_list[i].policy_net.load_state_dict(policynet_dict) 
-        for target_param, param in zip(agent_list[i].target_value_net.parameters(), agent_list[i].value_net.parameters()):
-            target_param.data.copy_(param.data)
+    # for i in range(num_agent):
+    #     if ph_num == 3 and args.algorithm=='safe-ddpg':
+    #         valuenet_dict = torch.load(f'checkpoints/{type_name}/{args.env_name}/{args.algorithm}/{args.safe_type} copy/value_net_checkpoint_a{i}.pth')
+    #         policynet_dict = torch.load(f'checkpoints/{type_name}/{args.env_name}/{args.algorithm}/{args.safe_type} copy/policy_net_checkpoint_a{i}.pth')
+    #     else:
+    #         valuenet_dict = torch.load(f'checkpoints/{type_name}/{args.env_name}/{args.algorithm} copy/value_net_checkpoint_a{i}.pth')
+    #         policynet_dict = torch.load(f'checkpoints/{type_name}/{args.env_name}/{args.algorithm} copy/policy_net_checkpoint_a{i}.pth')
+    #     agent_list[i].value_net.load_state_dict(valuenet_dict)
+    #     agent_list[i].policy_net.load_state_dict(policynet_dict) 
+    #     for target_param, param in zip(agent_list[i].target_value_net.parameters(), agent_list[i].value_net.parameters()):
+    #         target_param.data.copy_(param.data)
 
-        for target_param, param in zip(agent_list[i].target_policy_net.parameters(), agent_list[i].policy_net.parameters()):
-            target_param.data.copy_(param.data)
+    #     for target_param, param in zip(agent_list[i].target_policy_net.parameters(), agent_list[i].policy_net.parameters()):
+    #         target_param.data.copy_(param.data)
 
     if args.algorithm == 'safe-ddpg':
         # num_episodes = 200    #13-3p
-        num_episodes = 400
+        num_episodes = 700
     else:
         # num_episodes = 700 #123 2000 13-3p 700
-        num_episodes = 400
+        num_episodes = 700
 
     # trajetory length each episode
     num_steps = 30  
@@ -309,7 +309,7 @@ elif (FLAG ==1):
 
                 if(done):
                     episode_reward += reward  
-                    # break
+                    break #no break if 13bus3p
                 else:
                     state = np.copy(next_state)
                     episode_reward += reward    
@@ -333,8 +333,8 @@ elif (FLAG ==1):
 
 else:
     raise ValueError("Model loading optition does not exist!")
-torch.save(torch.tensor(rewards),'rewards_ddpg_q.pt')
-print(torch.tensor(rewards).shape)
+# torch.save(torch.tensor(rewards),'rewards_ddpg_q1.pt')
+# print(torch.tensor(rewards).shape)
 
 # title = ['Bus 18', 'Bus 21', 'Bus 30', 'Bus 45', 'Bus 53']
 # title = ['Bus 4', 'Bus 10', 'Bus 12']

@@ -444,13 +444,13 @@ def plot_bar_avg(num_agent):
     plt.legend(loc='upper right')
     plt.show()
 #11, 36, 75
-def plot_traj_123():
+def plot_traj_123(seed):
     ddpg_plt=[]
     safe_plt = []
     ddpg_a_plt=[]
     safe_a_plt = []
 
-    state = env.reset()
+    state = env.reset(seed)
     episode_reward = 0
     last_action = np.zeros((num_agent,1))
     action_list=[]
@@ -478,13 +478,13 @@ def plot_traj_123():
     fig, axs = plt.subplots(1, 2, figsize=(16,9))
     # lb = axs[0].plot(range(len(action_list)), [0.95]*len(action_list), linestyle='--', dashes=(5, 10), color='g', label='lower bound')
     # ub = axs[0].plot(range(len(action_list)), [1.05]*len(action_list), linestyle='--', dashes=(5, 10), color='r', label='upper bound')
-    for i in [2,5,10]:    
+    for i in [2,5,8]:    #[2,5,10]
         dps = axs[0].plot(range(len(action_list)), np.array(state_list)[:len(action_list),i], '-.', label = f'DDPG at {injection_bus[i]+1}', linewidth=2)
         dpa = axs[1].plot(range(len(action_list)), np.array(action_list)[:,i], '-.', label = f'DDPG at {injection_bus[i]+1}', linewidth=2)
         ddpg_plt.append(dps)
         ddpg_a_plt.append(dpa)
 
-    state = env.reset()
+    state = env.reset(seed)
     episode_reward = 0
     last_action = np.zeros((num_agent,1))
     action_list=[]
@@ -511,7 +511,7 @@ def plot_traj_123():
         last_action = np.copy(action)
         state = next_state
     safe_name = []
-    for i in [2,5,10]:    
+    for i in [2,5,8]:    
         safes=axs[0].plot(range(len(action_list)), np.array(state_list)[:len(action_list),i], '-', label = f'stable-DDPG at {injection_bus[i]+1}', linewidth=2)
         safea=axs[1].plot(range(len(action_list)), np.array(action_list)[:,i], label = f'stable-DDPG at {injection_bus[i]+1}', linewidth=2)
         safe_plt.append(safes)
@@ -698,13 +698,13 @@ if __name__ == "__main__":
     # test_suc_rate('linear',step_num=100)
     # test_suc_rate('ddpg',step_num=100)
     # plot_bar_avg(len(injection_bus))
-    plot_bar(len(injection_bus))
+    # plot_bar(len(injection_bus))
     # test_suc_rate('linear')
     # plot_action_selcted()
     # plot_bar(len(injection_bus))
-    # plot_traj_123()
+    # plot_traj_123(19)
     # plot_action_selcted([1,4,9]) #13b3p
     # plot_action_selcted([2,4,10]) #13b3p
-    # plot_action_selcted([2,5,10]) #123b
+    plot_action_selcted([2,5,8]) #123b
     # plot_action_selcted([0,1,2])
     # plot_traj()

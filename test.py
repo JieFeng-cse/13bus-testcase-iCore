@@ -127,7 +127,6 @@ for i in range(num_agent):
 
     # linear_valuenet_dict = torch.load(f'checkpoints/{type_name}/{args.env_name}/linear/value_net_checkpoint_a{i}.pth')
     linear_policynet_dict = torch.load(f'checkpoints/{type_name}/{args.env_name}/linear/policy_net_checkpoint_a{i}.pth')
-    # linear_agent_list[i].value_net.load_state_dict(ddpg_valuenet_dict)
     linear_agent_list[i].policy_net.load_state_dict(linear_policynet_dict)
 
     if ph_num == 3:
@@ -339,16 +338,11 @@ def test_suc_rate(algm, step_num=60):
     print(success_num)
     print(np.mean(final_step_list), np.std(final_step_list))
     print('cost',np.mean(control_cost_list), np.std(control_cost_list))
-    # for i in range(num_agent):
-    #     states = np.array(final_state_list)
-    #     n, bins, patches = axs[i].hist(states[:,i], [0.7,0.85,0.90,0.95,1.0,1.05,1.1,1.15,1.2])
-    # plt.title('safe_ddpg, high voltage')
-    # plt.show()
     return final_state_list
 
 def plot_bar(num_agent):
     print('max')
-    xlab = 'Voltage Violation (high voltage)'
+    xlab = 'Voltage Violation (per test scenario)'
     plt.rcParams['font.size'] = '11'
     
     plt.figure(figsize=(3.96,2.87),dpi=300)
@@ -403,7 +397,7 @@ def plot_bar(num_agent):
 
 def plot_bar_avg(num_agent):
     print('avg')
-    xlab = 'Voltage Violation (low voltage)'
+    xlab = 'Voltage Violation (per bus)'
     plt.rcParams['font.size'] = '11'
     
     plt.figure(figsize=(3.96,2.87),dpi=300)
@@ -445,6 +439,7 @@ def plot_bar_avg(num_agent):
     plt.show()
 #11, 36, 75
 def plot_traj_123(seed):
+    color_set = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b']
     ddpg_plt=[]
     safe_plt = []
     ddpg_a_plt=[]
@@ -475,12 +470,12 @@ def plot_traj_123(seed):
         state_list.append(next_state)
         last_action = np.copy(action)
         state = next_state
-    fig, axs = plt.subplots(1, 2, figsize=(16,9))
+    fig, axs = plt.subplots(1, 2, figsize=(13,4))
     # lb = axs[0].plot(range(len(action_list)), [0.95]*len(action_list), linestyle='--', dashes=(5, 10), color='g', label='lower bound')
     # ub = axs[0].plot(range(len(action_list)), [1.05]*len(action_list), linestyle='--', dashes=(5, 10), color='r', label='upper bound')
-    for i in [2,5,8]:    #[2,5,10]
-        dps = axs[0].plot(range(len(action_list)), np.array(state_list)[:len(action_list),i], '-.', label = f'DDPG at {injection_bus[i]+1}', linewidth=2)
-        dpa = axs[1].plot(range(len(action_list)), np.array(action_list)[:,i], '-.', label = f'DDPG at {injection_bus[i]+1}', linewidth=2)
+    for idx,i in enumerate([2,5,8]):    #[2,5,10]
+        dps = axs[0].plot(range(len(action_list)), np.array(state_list)[:len(action_list),i], '-.', label = f'DDPG at {injection_bus[i]+1}', linewidth=2,color=color_set[idx])
+        dpa = axs[1].plot(range(len(action_list)), np.array(action_list)[:,i], '-.', label = f'DDPG at {injection_bus[i]+1}', linewidth=2,color=color_set[idx])
         ddpg_plt.append(dps)
         ddpg_a_plt.append(dpa)
 
@@ -511,19 +506,27 @@ def plot_traj_123(seed):
         last_action = np.copy(action)
         state = next_state
     safe_name = []
-    for i in [2,5,8]:    
-        safes=axs[0].plot(range(len(action_list)), np.array(state_list)[:len(action_list),i], '-', label = f'stable-DDPG at {injection_bus[i]+1}', linewidth=2)
-        safea=axs[1].plot(range(len(action_list)), np.array(action_list)[:,i], label = f'stable-DDPG at {injection_bus[i]+1}', linewidth=2)
+    for idx,i in enumerate([2,5,8]): 
+        safes=axs[0].plot(range(len(action_list)), np.array(state_list)[:len(action_list),i], '-', label = f'stable-DDPG at {injection_bus[i]+1}', linewidth=2,color=color_set[idx])
+        safea=axs[1].plot(range(len(action_list)), np.array(action_list)[:,i], label = f'stable-DDPG at {injection_bus[i]+1}', linewidth=2,color=color_set[idx])
         safe_plt.append(safes)
         safe_name.append(f'stable-DDPG at {injection_bus[i]}')
         safe_a_plt.append(safea)
     # leg1 = plt.legend(safe_a_plt, safe_name, loc='lower left')
-    axs[0].legend(loc='lower left', prop={"size":20})
-    axs[1].legend(loc='lower left', prop={"size":20})
+    # axs[0].legend(loc='lower left', prop={"size":20})
+    # axs[1].legend(loc='lower left', prop={"size":20})
+    box = axs[0].get_position()
+    axs[0].set_position([box.x0-0.05*box.width, box.y0,
+                    box.width* 0.87, box.height])
+    box = axs[1].get_position()
+    axs[1].set_position([box.x0-0.12*box.width, box.y0,
+                    box.width* 0.87, box.height])
+    axs[0].legend(loc='right', bbox_to_anchor=(2.92, 0.4),
+        fancybox=True, shadow=True, ncol=1, prop={"size":13})
     axs[0].set_xlabel('Iteretion Steps')   
     axs[1].set_xlabel('Iteretion Steps')  
     axs[0].set_ylabel('Bus Voltage [p.u.]')   
-    axs[1].set_ylabel('Reactive Power Injection [MVar]')  
+    axs[1].set_ylabel('q Injection [MVar]')  
     plt.show()
 
 def plot_action_selcted(selected=[1,5,9]):    
@@ -532,11 +535,6 @@ def plot_action_selcted(selected=[1,5,9]):
     #     injection_bus = [3,6,5,2,4,9,12,10,11,1,8,7]
     fig, axs = plt.subplots(1, 3, figsize=(12,4))
     plt.gcf().subplots_adjust(bottom=0.18)
-    # plt.rc('xtick', size=2) 
-    # plt.rc('ytick', size=2) 
-    # plt.tick_params(axis='both', which='major', labelsize=2)
-    # plt.rcParams['font.size'] = 15
-    # plt.rcParams.update({'font.size': 12})
     for indx,i in enumerate(selected):
         # plot policy
         N = 40
@@ -657,7 +655,7 @@ def plot_action_selcted(selected=[1,5,9]):
         # axs[indx].legend(loc='lower left', prop={"size":13})
         axs[indx].set_xlabel('voltage magnitude [p.u.]', size=18)   
         axs[indx].set_ylabel(f'q change [MVar]', size=18) 
-        # plt.yticks(size=1)
+        
     box = axs[0].get_position()
     axs[0].set_position([box.x0-0.15*box.width, box.y0,
                     box.width* 0.9, box.height])
@@ -696,7 +694,7 @@ if __name__ == "__main__":
     # print("test")
     # test_suc_rate('safe-ddpg',step_num=100) #safe-ddpg
     # test_suc_rate('linear',step_num=100)
-    # test_suc_rate('ddpg',step_num=100)
+    test_suc_rate('ddpg',step_num=100)
     # plot_bar_avg(len(injection_bus))
     # plot_bar(len(injection_bus))
     # test_suc_rate('linear')
@@ -705,6 +703,6 @@ if __name__ == "__main__":
     # plot_traj_123(19)
     # plot_action_selcted([1,4,9]) #13b3p
     # plot_action_selcted([2,4,10]) #13b3p
-    plot_action_selcted([2,5,8]) #123b
+    # plot_action_selcted([2,5,8]) #123b
     # plot_action_selcted([0,1,2])
     # plot_traj()

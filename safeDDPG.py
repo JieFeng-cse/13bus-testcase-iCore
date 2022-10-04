@@ -59,13 +59,20 @@ class DDPG:
         self.value_optimizer.step()
         
         # linear_action = (torch.maximum(state-1.03,torch.zeros_like(state))-torch.maximum(0.97-state,torch.zeros_like(state)))*1
+        # print(self.policy_net(state))
+        # exit(0)
         # policy_loss = self.value_criterion(self.policy_net(state),linear_action)
         policy_loss = self.value_net(state, last_action-self.policy_net(state)) 
-        policy_loss =  -policy_loss.mean() #+ 0.1*self.value_criterion(self.policy_net(state),linear_action)
+        policy_loss =  -policy_loss.mean()
+        # policy_loss =  self.value_criterion(self.policy_net(state),linear_action)
         
         self.policy_optimizer.zero_grad()
         policy_loss.backward()
         self.policy_optimizer.step()
+        #CINN
+        for Wz in self.policy_net.icnn.Wzs:
+            Wz.weight.data = torch.clamp(Wz.weight.data, 0, np.inf)
+
         # print(f'value loss: {value_loss.cpu().detach().numpy():.4f}, policy_loss: {policy_loss.cpu().detach().numpy():.4f}')
 
         for target_param, param in zip(self.target_value_net.parameters(), self.value_net.parameters()):
@@ -180,29 +187,29 @@ class SafePolicyNetwork(nn.Module):
         self.z = torch.nn.Parameter(torch.rand(action_dim, self.hidden_dim), requires_grad=True)
         
     def forward(self, state):
-        self.w_plus=torch.matmul(torch.square(self.q.double()), self.w_recover.double())
+        self.w_plus=torch.matmul(torch.square(self.q), self.w_recover)
         
-        self.w_minus=torch.matmul(-torch.square(self.q.double()), self.w_recover.double())
+        self.w_minus=torch.matmul(-torch.square(self.q), self.w_recover)
         
         b = self.b.data
-        b = b.clamp(min=0).double()
+        b = b.clamp(min=0)
         b = self.scale*b/torch.norm(b, 1)
         self.b.data = b
         
         #maybe this part is wrong?
         c = self.c.data
-        c = c.clamp(min=0).double()
+        c = c.clamp(min=0)
         c = self.scale*c/torch.norm(c, 1)
         self.c.data = c
         
-        self.b_plus=torch.matmul(-self.b, self.b_recover.double()) - torch.tensor(self.env.vmax-0.02)
-        self.b_minus=torch.matmul(-self.b, self.b_recover.double()) + torch.tensor(self.env.vmin+0.02)
+        self.b_plus=torch.matmul(-self.b, self.b_recover) - torch.tensor(self.env.vmax-0.02)
+        self.b_minus=torch.matmul(-self.b, self.b_recover) + torch.tensor(self.env.vmin+0.02)
         
-        self.nonlinear_plus = torch.matmul(F.relu(torch.matmul(state.double(), self.select_w.double())
+        self.nonlinear_plus = torch.matmul(F.relu(torch.matmul(state, self.select_w)
                                                   + self.b_plus.view(1, self.hidden_dim)),
                                            torch.transpose(self.w_plus, 0, 1))
         
-        self.nonlinear_minus = torch.matmul(F.relu(torch.matmul(state.double(), self.select_wneg.double())
+        self.nonlinear_minus = torch.matmul(F.relu(torch.matmul(state, self.select_wneg)
                                                    + self.b_minus.view(1, self.hidden_dim)),
                                             torch.transpose(self.w_minus, 0, 1))
         

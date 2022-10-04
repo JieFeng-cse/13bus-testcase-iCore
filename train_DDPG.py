@@ -28,6 +28,7 @@ from env_single_phase_123bus import IEEE123bus, create_123bus
 from env_three_phase_eu import Three_Phase_EU, create_eu_lv
 from IEEE_13_3p import IEEE13bus3p, create_13bus3p
 from safeDDPG import ValueNetwork, SafePolicyNetwork, DDPG, ReplayBuffer, ReplayBufferPI, PolicyNetwork, SafePolicy3phase, StablePolicy3phase, LinearPolicy
+from ICNN import ICNN,convex_monotone_network
 
 use_cuda = torch.cuda.is_available()
 device   = torch.device("cuda" if use_cuda else "cpu")
@@ -130,6 +131,9 @@ for i in range(num_agent):
     if args.algorithm == 'safe-ddpg' and not ph_num == 3:
         policy_net = SafePolicyNetwork(env=env, obs_dim=obs_dim, action_dim=action_dim, hidden_dim=hidden_dim).to(device)
         target_policy_net = SafePolicyNetwork(env=env, obs_dim=obs_dim, action_dim=action_dim, hidden_dim=hidden_dim).to(device)
+    elif args.algorithm == 'safe-ddpg-convex':
+        policy_net = convex_monotone_network(env=env, obs_dim=obs_dim, action_dim=action_dim, hidden_dim=hidden_dim).to(device)
+        target_policy_net = convex_monotone_network(env=env, obs_dim=obs_dim, action_dim=action_dim, hidden_dim=hidden_dim).to(device)
     # elif args.algorithm == 'safe-ddpg' and ph_num == 3 and args.safe_type == 'loss':
     #     policy_net = PolicyNetwork(env=env, obs_dim=obs_dim, action_dim=action_dim, hidden_dim=hidden_dim).to(device)
     #     target_policy_net = PolicyNetwork(env=env, obs_dim=obs_dim, action_dim=action_dim, hidden_dim=hidden_dim).to(device)
@@ -217,11 +221,14 @@ elif (FLAG ==1):
     #         target_param.data.copy_(param.data)
 
     if args.algorithm == 'safe-ddpg':
-        # num_episodes = 200    #13-3p
-        num_episodes = 700
+        num_episodes = 200    #13-3p
+        # num_episodes = 700
     else:
         # num_episodes = 700 #123 2000 13-3p 700
         num_episodes = 700
+
+    if args.algorithm == 'safe-ddpg-convex':
+        num_episodes = 300 
 
     # trajetory length each episode
     num_steps = 30  
@@ -336,9 +343,6 @@ else:
 # torch.save(torch.tensor(rewards),'rewards_ddpg_q1.pt')
 # print(torch.tensor(rewards).shape)
 
-# title = ['Bus 18', 'Bus 21', 'Bus 30', 'Bus 45', 'Bus 53']
-# title = ['Bus 4', 'Bus 10', 'Bus 12']
-# why small actions have better rewards, I have to check that
 if args.status == 'train':
     check_buffer = replay_buffer_list[0]
     buffer_len = replay_buffer_list[0].__len__()
@@ -391,16 +395,6 @@ for i in range(num_agent):
         axs[i].plot(s_array, a_array[:,k], label = args.algorithm)
         axs[i].legend(loc='lower left')
 plt.show()
-
-# for i in range(num_agent):
-#     if args.env_name == 'eu-lv':
-#         pth_value = f'checkpoints/{type_name}/{args.env_name}/{args.algorithm}/{args.safe_type}/value_net_checkpoint_a{i}.pth'
-#         pth_policy = f'checkpoints/{type_name}/{args.env_name}/{args.algorithm}/{args.safe_type}/policy_net_checkpoint_a{i}.pth'
-#     else:
-#         pth_value = f'checkpoints/{type_name}/{args.env_name}/{args.algorithm}/value_net_checkpoint_a{i}.pth'
-#         pth_policy = f'checkpoints/{type_name}/{args.env_name}/{args.algorithm}/policy_net_checkpoint_a{i}.pth'
-#     torch.save(agent_list[i].value_net.state_dict(), pth_value)
-#     torch.save(agent_list[i].policy_net.state_dict(), pth_policy)
 
 ## test policy
 state = env.reset()

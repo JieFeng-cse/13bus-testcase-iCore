@@ -16,12 +16,14 @@ import pandas as pd
 import math
 
 class IEEE13bus(gym.Env):
-    def __init__(self, pp_net, injection_bus, v0=1, vmax=1.05, vmin=0.95):
+    def __init__(self, pp_net, injection_bus, v0=1, vmax=1.05, vmin=0.95, all_bus=False):
         self.network =  pp_net
         self.obs_dim = 1
         self.action_dim = 1
         self.injection_bus = injection_bus
         self.agentnum = len(injection_bus)
+        if self.agentnum == 12:
+            all_bus=True
         self.v0 = v0 
         self.vmax = vmax
         self.vmin = vmin
@@ -31,6 +33,7 @@ class IEEE13bus(gym.Env):
 
         self.gen0_p = np.copy(self.network.sgen['p_mw'])
         self.gen0_q = np.copy(self.network.sgen['q_mvar'])
+        self.all_bus = all_bus
         
         self.state = np.ones(self.agentnum, )
     
@@ -185,8 +188,9 @@ class IEEE13bus(gym.Env):
             self.network.sgen.at[0, 'p_mw'] = -0.5*np.random.uniform(1, 7)
             self.network.sgen.at[1, 'p_mw'] = -0.8*np.random.uniform(1, 4)
             self.network.sgen.at[2, 'p_mw'] = -0.3*np.random.uniform(1, 5)
-            # for i in range(len(self.injection_bus)):
-            #     self.network.sgen.at[i, 'p_mw'] = -0.3*np.random.uniform(1, 2.5)
+            if self.all_bus:
+                for i in range(len(self.injection_bus)):
+                    self.network.sgen.at[i, 'p_mw'] = -0.3*np.random.uniform(1, 2.5)
         elif(senario == 1): #high voltage 
             self.network.sgen['p_mw'] = 0.0
             self.network.sgen['q_mvar'] = 0.0
@@ -203,17 +207,20 @@ class IEEE13bus(gym.Env):
             # # self.network.sgen.at[1, 'p_mw'] = np.random.uniform(2, 4.5)
             # # self.network.sgen.at[2, 'p_mw'] = np.random.uniform(1, 5)
 
-            self.network.sgen.at[3, 'q_mvar'] = 0.3*np.random.uniform(0, 0.2)
+            # self.network.sgen.at[3, 'q_mvar'] = 0.3*np.random.uniform(0, 0.2)
+            self.network.sgen.at[3, 'p_mw'] = 0.3*np.random.uniform(0, 0.2)
             self.network.sgen.at[4, 'p_mw'] = 0.5*np.random.uniform(2, 3)
-            self.network.sgen.at[5, 'q_mvar'] = 0.4*np.random.uniform(0, 10)
+            # self.network.sgen.at[5, 'q_mvar'] = 0.4*np.random.uniform(0, 10)
+            self.network.sgen.at[3, 'p_mw'] = 0.3*np.random.uniform(0, 0.2)
             
             self.network.sgen.at[10, 'p_mw'] = np.random.uniform(0.2, 3)
             self.network.sgen.at[11, 'p_mw'] = np.random.uniform(0, 1.5)
             #for all buses scheme
-            # self.network.sgen.at[6, 'p_mw'] = 0.5*np.random.uniform(1, 2)
-            # self.network.sgen.at[7, 'p_mw'] = 0.2*np.random.uniform(1, 3)
-            # self.network.sgen.at[8, 'p_mw'] = 0.2*np.random.uniform(2, 3)
-            # self.network.sgen.at[9, 'p_mw'] = np.random.uniform(0.1, 0.5)
+            if self.all_bus:
+                self.network.sgen.at[6, 'p_mw'] = 0.5*np.random.uniform(1, 2)
+                self.network.sgen.at[7, 'p_mw'] = 0.2*np.random.uniform(1, 3)
+                self.network.sgen.at[8, 'p_mw'] = 0.2*np.random.uniform(2, 3)
+                self.network.sgen.at[9, 'p_mw'] = np.random.uniform(0.1, 0.5)
         
         else: #mixture (this is used only during testing)
             self.network.sgen['p_mw'] = 0.0

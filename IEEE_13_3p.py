@@ -92,7 +92,9 @@ class IEEE13bus3p(gym.Env):
         #safe: -1.0*LA.norm(p_action[i],1) 
         # reward_sep += reward    
         # state-transition dynamics
-        action = action * 100 #from kVar to MVar
+        rate=0.7
+        action = np.clip(action,-5*rate,5*rate)
+        action = action * 100 #from MVar to kVar
         for i, idx in enumerate(self.injection_bus_str):
             # print(idx+' '+self.injection_bus[idx])
             for phase in self.injection_bus[idx]:

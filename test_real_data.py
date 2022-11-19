@@ -41,7 +41,7 @@ q = loadmat('aggr_q.mat')
 pp_net = create_13bus()
 injection_bus = np.array([2, 7, 9])
 injection_bus = np.array([1,2,3,4,5,6, 7, 8,9,10,11,12])
-env = IEEE13bus(pp_net, injection_bus)
+env = IEEE13bus(pp_net, injection_bus,1,1.05,0.95,True)
 num_agent = len(injection_bus)
 
 max_ac = 0.3
@@ -188,7 +188,50 @@ def plot_traj(p,q,pv_p):
     axs[1].set_ylabel('Bus voltage (p.u.)', fontsize=15)  
     axs[2].set_ylabel('Bus voltage (p.u.)', fontsize=15)  
     plt.show()
+def test_suc_rate(algm, step_num=60):
+    success_num = 0
+    final_state_list = []
+    final_step_list = []
+    control_cost_list = []
+    for rep in range(500):
+        state = env.reset(rep)
+        episode_reward = 0
+        last_action = np.zeros((num_agent,ph_num))
+        action_list=[]
+        state_list =[]
+        state_list.append(state)
+        control_action = []
+        for step in range(step_num):
+            action = []
+            for i in range(num_agent):            
+                action_agent = safe_ddpg_agent_list[i].policy_net.get_action(np.asarray([state[i]]))
+                action_agent = np.clip(action_agent, -max_ac, max_ac)
+                action.append(action_agent)
 
+            # PI policy    
+            action = last_action - np.asarray(action)
+            control_action.append(np.abs(action))
+            # execute action a_t and observe reward r_t and observe next state s_{t+1}
+            next_state, reward, reward_sep, done = env.step_Preward(action, (last_action-action))
+            if done:
+                success_num += 1
+                final_step_list.append(step+1)
+                control_cost_list.append(np.sum(np.asarray(control_action)))
+                break
+            action_list.append(last_action-action)
+            state_list.append(next_state)
+            last_action = np.copy(action)
+            state = next_state
+        
+        if not done:
+            final_step_list.append(step_num)
+            control_cost_list.append(np.sum(np.asarray(control_action)))
+        final_state_list.append(next_state)
+    print(f'result for {algm}')
+    print(success_num)
+    print(np.mean(final_step_list), np.std(final_step_list))
+    print('cost',np.mean(control_cost_list), np.std(control_cost_list))
+    return final_state_list
 def plot_traj_no_leg(p,q,pv_p):
     ddpg_plt=[]
     safe_plt = []
@@ -286,4 +329,5 @@ def plot_traj_no_leg(p,q,pv_p):
     plt.show()
 
 
-plot_traj_no_leg(p['p'],q['q'],np.resize(PV_p['actual_PV_profile'],(q['q'].shape[0],1)))
+# plot_traj_no_leg(p['p'],q['q'],np.resize(PV_p['actual_PV_profile'],(q['q'].shape[0],1)))
+test_suc_rate("safe-ddpg",100)

@@ -70,8 +70,8 @@ class DDPG:
         policy_loss.backward()
         self.policy_optimizer.step()
         #CINN
-        for Wz in self.policy_net.icnn.Wzs:
-            Wz.weight.data = torch.clamp(Wz.weight.data, 0, np.inf)
+        # for Wz in self.policy_net.icnn.Wzs:
+        #     Wz.weight.data = torch.clamp(Wz.weight.data, 0, np.inf)
 
         # print(f'value loss: {value_loss.cpu().detach().numpy():.4f}, policy_loss: {policy_loss.cpu().detach().numpy():.4f}')
 

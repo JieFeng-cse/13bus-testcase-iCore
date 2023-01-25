@@ -221,8 +221,8 @@ elif (FLAG ==1):
     #         target_param.data.copy_(param.data)
 
     if args.algorithm == 'safe-ddpg':
-        num_episodes = 200    #13-3p
-        # num_episodes = 700
+        # num_episodes = 200    #13-3p
+        num_episodes = 700
     else:
         # num_episodes = 700 #123 2000 13-3p 700
         num_episodes = 700

@@ -36,7 +36,8 @@ Create the environment
 vlr = 2e-4
 plr = 1e-4
 batch_size = 256
-status = 'train'
+status = 'test'
+# status = 'train'
 
 
 # injection_bus = np.array([675,633,680])
@@ -112,10 +113,13 @@ def get_id(phases):
 
 if (FLAG ==0): 
     # load trained policy
-    for i in range(num_agent):
-        #change the path
-        valuenet_dict = torch.load(f'checkpoints/three-phase/13bus3p/safe-ddpg/three_single/value_net_checkpoint_a{injection_bus[i]}.pth')
-        policynet_dict = torch.load(f'checkpoints/three-phase/13bus3p/safe-ddpg/three_single/policy_net_checkpoint_a{injection_bus[i]}.pth')
+    # for i in range(num_agent):
+    #     #change the path
+    #     valuenet_dict = torch.load(f'checkpoints/three-phase/13bus3p/safe-ddpg/three_single/value_net_checkpoint_a{injection_bus[i]}.pth')
+    #     policynet_dict = torch.load(f'checkpoints/three-phase/13bus3p/safe-ddpg/three_single/policy_net_checkpoint_a{injection_bus[i]}.pth')
+     for i in range(num_agent):        
+        valuenet_dict = torch.load(f'checkpoints/three-phase/13bus3p/safe-ddpg/three_single copy/value_net_checkpoint_a{i}.pth')
+        policynet_dict = torch.load(f'checkpoints/three-phase/13bus3p/safe-ddpg/three_single copy/policy_net_checkpoint_a{i}.pth')
         
         agent_list[i].value_net.load_state_dict(valuenet_dict)
         agent_list[i].policy_net.load_state_dict(policynet_dict)
@@ -135,7 +139,7 @@ elif (FLAG ==1):
             target_param.data.copy_(param.data)
 
     # training episode
-    num_episodes = 400
+    num_episodes = 500
 
     # trajetory length each episode
     num_steps = 30     
@@ -267,21 +271,15 @@ for step in range(100):
     action = []
     for i in range(num_agent):
         # sample action according to the current policy and exploration noise
-        if ph_num==3:
-            action_agent = np.zeros(3)
-            phases = env.injection_bus[env.injection_bus_str[i]]
-            id = get_id(phases)
-            action_tmp = agent_list[i].policy_net.get_action(np.asarray([state[i,id]])) 
-            action_tmp = action_tmp.reshape(len(id),)  
-            for i in range(len(phases)):
-                action_agent[id[i]]=action_tmp[i]
-            action_agent = np.clip(action_agent, -max_ac, max_ac) 
-            action.append(action_agent)
-        else:
-            action_agent = agent_list[i].policy_net.get_action(np.asarray([state[i]]))
-            # action_agent = (np.maximum(state[i]-1.05, 0)-np.maximum(0.95-state[i], 0)).reshape((1,))
-            action_agent = np.clip(action_agent, -max_ac, max_ac)
-            action.append(action_agent)
+        action_agent = np.zeros(3)
+        phases = env.injection_bus[env.injection_bus_str[i]]
+        id = get_id(phases)
+        action_tmp = agent_list[i].policy_net.get_action(np.asarray([state[i,id]]))
+        action_tmp = action_tmp.reshape(len(id),)  
+        for i in range(len(phases)):
+            action_agent[id[i]]=action_tmp[i]
+        action_agent = np.clip(action_agent, -max_ac, max_ac) 
+        action.append(action_agent)
 
     # PI policy    
     action = last_action - np.asarray(action)
@@ -305,5 +303,3 @@ for i in range(num_agent):
     axs1[i].legend(loc='lower left')
 axs[num_agent].plot(range(len(reward_list)),reward_list)
 plt.show()
-
-# test success rate:

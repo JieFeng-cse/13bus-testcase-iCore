@@ -24,7 +24,7 @@ DSS_PATH = "opendss_model/13bus-icore/IEEE13Node_iCOREV2.dss"
 
 def create_13bus3p(injection_bus):
     #build the generators
-    distSys = SystemClass(path=DSS_PATH, kV=[115, 4.16, 0.48])
+    distSys = SystemClass(path=DSS_PATH, kV=[4.16, 4.16, 0.48])
     cfg_tspf(distSys,'0.02s')
     injection_bus_dict = dict()
     cmd = []
@@ -77,7 +77,7 @@ class IEEE13bus3p(gym.Env):
     action[i] is a vector includes three numbers, each number stands for a phase
     Every time this function is used, the environment excute the action, and give back reward and next meausrements
     """
-    def step_Preward(self, action, p_action):         
+    def step_Preward(self, action, p_action):     
         done = False 
         #overall reward
         reward = float(-1.0*LA.norm(p_action,1)-1000*LA.norm(np.clip(self.state-self.vmax, 0, np.inf),2)**2
@@ -117,13 +117,13 @@ class IEEE13bus3p(gym.Env):
     def reset(self, seed=1): #sample different initial volateg conditions during training
         np.random.seed(seed)
         senario = np.random.choice([0,1])
-        # senario = 1
+        senario = 0
         self.network.init_sys()
         if(senario == 0):
             # Low voltage
-            bus_a_kw = -100*np.random.uniform(1, 3)
-            bus_b_kw = -100*np.random.uniform(1, 3)
-            bus_c_kw = -100*np.random.uniform(1, 3)
+            bus_a_kw = -100*np.random.uniform(0.8, 1.1)
+            bus_b_kw = -100*np.random.uniform(0.8, 1.1)
+            bus_c_kw = -100*np.random.uniform(0.8, 1.1)
             for idx in self.injection_bus_str:
                 for phase in self.injection_bus[idx]:
                     if phase == 'a':
@@ -134,9 +134,9 @@ class IEEE13bus3p(gym.Env):
                         self.network.run_command(f"Generator.bus{idx}_3.kw={bus_c_kw}") 
         if(senario == 1):
             # High voltage
-            bus_a_kw = 100*np.random.uniform(3, 5)
-            bus_b_kw = 100*np.random.uniform(4, 5)
-            bus_c_kw = 100*np.random.uniform(4, 5)
+            bus_a_kw = 100*np.random.uniform(0.1, 0.2)
+            bus_b_kw = 100*bus_a_kw
+            bus_c_kw = 100*bus_a_kw
             for idx in self.injection_bus_str:
                 for phase in self.injection_bus[idx]:
                     if phase == 'a':

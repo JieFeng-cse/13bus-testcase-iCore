@@ -20,7 +20,7 @@ from dssdata.pfmodes import run_static_pf
 from dssdata.tools import voltages
 from dssdata.pfmodes import cfg_tspf
 
-DSS_PATH = "/home/jason/Documents/research/stable-rl-three-phase-derconnect/opendss_model/13bus-icore/IEEE13Node_iCOREV2.dss"
+DSS_PATH = "opendss_model/13bus-icore/IEEE13Node_iCOREV2.dss"
 
 def create_13bus3p(injection_bus):
     #build the generators
@@ -28,6 +28,8 @@ def create_13bus3p(injection_bus):
     cfg_tspf(distSys,'0.02s')
     injection_bus_dict = dict()
     cmd = []
+    #for each controlled bus, we set a generator for each phase
+    #In this way, we can manipulate the reactive and real power injection
     for idx in injection_bus:
         v_i = voltages.get_from_buses(distSys,[str(idx)])
         phase_i = v_i['phase'][0]
@@ -44,6 +46,7 @@ def create_13bus3p(injection_bus):
     distSys.dsscontent = distSys.dsscontent + cmd
     return distSys, injection_bus_dict
 
+#class for the IEEE 13 bus three phase system
 class IEEE13bus3p(gym.Env):
     def __init__(self, distSys, injection_bus_dict, v0=1, vmax=1.05, vmin=0.95):
         self.network =  distSys
@@ -58,34 +61,39 @@ class IEEE13bus3p(gym.Env):
         self.vmin = vmin
         
         self.state = np.ones((self.agentnum, 3))
+    #get the voltage measurements (RMS value for all three phases)
     def get_state(self):
         v_pu = voltages.get_from_buses(self.network, self.injection_bus_str)
         state_a = v_pu['v_pu_a'].to_numpy().reshape(-1,1)
         state_b = v_pu['v_pu_b'].to_numpy().reshape(-1,1)
         state_c = v_pu['v_pu_c'].to_numpy().reshape(-1,1)
         self.state = np.hstack([state_a, state_b, state_c]) #shape: number_of_bus*3
-        self.state[np.isnan(self.state)]=1.0
+        self.state[np.isnan(self.state)]=1.0 #for unblanced system, some buses are nan, set it 1
         # print(self.state[-1,[1,2]])
         return self.state
     
-    def step_Preward(self, action, p_action): 
-        
+    """
+    action is the reactive power injection for 10 controlled buses, 
+    action[i] is a vector includes three numbers, each number stands for a phase
+    Every time this function is used, the environment excute the action, and give back reward and next meausrements
+    """
+    def step_Preward(self, action, p_action):         
         done = False 
-        #safe-ddpg reward
+        #overall reward
         reward = float(-1.0*LA.norm(p_action,1)-1000*LA.norm(np.clip(self.state-self.vmax, 0, np.inf),2)**2
                        -1000*LA.norm(np.clip(self.vmin-self.state, 0, np.inf),2)**2)
         # local reward
         agent_num = len(self.injection_bus)
         reward_sep = np.zeros(agent_num, )
-        #just for ddpg
+        
         p_action = np.array(p_action)
         for i in range(agent_num):
             for j in range(3):
                 if self.state[i,j]<0.95:
-                    reward_sep[i] +=float(-50.0*LA.norm([p_action[i,j]],1)-1000*LA.norm(np.clip([self.state[i,j]-self.vmax], 0, np.inf),2)**2
+                    reward_sep[i] +=float(-1.0*LA.norm([p_action[i,j]],1)-1000*LA.norm(np.clip([self.state[i,j]-self.vmax], 0, np.inf),2)**2
                     -1000*LA.norm(np.clip([self.vmin-self.state[i,j]], 0, np.inf),2)**2)  
                 elif self.state[i,j]>1.05:
-                    reward_sep[i] +=float(-50.0*LA.norm([p_action[i,j]],1)-1000*LA.norm(np.clip([self.state[i,j]-self.vmax], 0, np.inf),2)**2
+                    reward_sep[i] +=float(-1.0*LA.norm([p_action[i,j]],1)-1000*LA.norm(np.clip([self.state[i,j]-self.vmax], 0, np.inf),2)**2
                     -1000*LA.norm(np.clip([self.vmin-self.state[i,j]], 0, np.inf),2)**2)  
                            
         action = action * 100 #from MVar to kVar
@@ -105,6 +113,7 @@ class IEEE13bus3p(gym.Env):
             done = True
         return self.state, reward, reward_sep, done
 
+    #reset the environment
     def reset(self, seed=1): #sample different initial volateg conditions during training
         np.random.seed(seed)
         senario = np.random.choice([0,1])

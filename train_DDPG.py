@@ -135,7 +135,7 @@ elif (FLAG ==1):
             target_param.data.copy_(param.data)
 
     # training episode
-    num_episodes = 700   
+    num_episodes = 400
 
     # trajetory length each episode
     num_steps = 30     

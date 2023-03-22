@@ -117,7 +117,7 @@ class IEEE13bus3p(gym.Env):
     def reset(self, seed=1): #sample different initial volateg conditions during training
         np.random.seed(seed)
         senario = np.random.choice([0,1])
-        senario = 0
+        # senario = 1
         self.network.init_sys()
         if(senario == 0):
             # Low voltage
@@ -134,9 +134,9 @@ class IEEE13bus3p(gym.Env):
                         self.network.run_command(f"Generator.bus{idx}_3.kw={bus_c_kw}") 
         if(senario == 1):
             # High voltage
-            bus_a_kw = 100*np.random.uniform(0.1, 0.2)
-            bus_b_kw = 100*bus_a_kw
-            bus_c_kw = 100*bus_a_kw
+            bus_a_kw = 100*np.random.uniform(1.1, 1.6)
+            bus_b_kw = 100*np.random.uniform(1.1, 1.6)
+            bus_c_kw = 100*np.random.uniform(1.1, 1.6)     
             for idx in self.injection_bus_str:
                 for phase in self.injection_bus[idx]:
                     if phase == 'a':

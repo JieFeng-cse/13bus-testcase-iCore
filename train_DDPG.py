@@ -260,39 +260,44 @@ for i in range(num_agent):
 plt.show()
 
 ## test policy
-state = env.reset()
-episode_reward = 0
-last_action = np.zeros((num_agent,1))
-action_list=[]
-state_list =[]
-reward_list = []
-state_list.append(state)
-for step in range(100):
-    action = []
-    for i in range(num_agent):
-        # sample action according to the current policy and exploration noise
-        action_agent = np.zeros(3)
-        phases = env.injection_bus[env.injection_bus_str[i]]
-        id = get_id(phases)
-        action_tmp = agent_list[i].policy_net.get_action(np.asarray([state[i,id]]))
-        action_tmp = action_tmp.reshape(len(id),)  
-        for i in range(len(phases)):
-            action_agent[id[i]]=action_tmp[i]
-        action_agent = np.clip(action_agent, -max_ac, max_ac) 
-        action.append(action_agent)
+number_of_done = 0
+for jj in range(500):
+    state = env.reset()
+    episode_reward = 0
+    last_action = np.zeros((num_agent,1))
+    action_list=[]
+    state_list =[]
+    reward_list = []
+    state_list.append(state)    
+    for step in range(100):
+        action = []
+        for i in range(num_agent):
+            # sample action according to the current policy and exploration noise
+            action_agent = np.zeros(3)
+            phases = env.injection_bus[env.injection_bus_str[i]]
+            id = get_id(phases)
+            action_tmp = agent_list[i].policy_net.get_action(np.asarray([state[i,id]]))
+            action_tmp = action_tmp.reshape(len(id),)  
+            for i in range(len(phases)):
+                action_agent[id[i]]=action_tmp[i]
+            action_agent = np.clip(action_agent, -max_ac, max_ac) 
+            action.append(action_agent)
 
-    # PI policy    
-    action = last_action - np.asarray(action)
+        # PI policy    
+        action = last_action - np.asarray(action)
 
-    # execute action a_t and observe reward r_t and observe next state s_{t+1}
-    next_state, reward, reward_sep, done = env.step_Preward(action, (last_action-action))
-    reward_list.append(reward)
-    if done:
-        print("finished")
-    action_list.append(last_action-action)
-    state_list.append(next_state)
-    last_action = np.copy(action)
-    state = next_state
+        # execute action a_t and observe reward r_t and observe next state s_{t+1}
+        next_state, reward, reward_sep, done = env.step_Preward(action, (last_action-action))
+        reward_list.append(reward)
+        action_list.append(last_action-action)
+        state_list.append(next_state)
+        last_action = np.copy(action)
+        state = next_state
+        if done:
+            # print("finished")
+            number_of_done+=1
+            break
+print(number_of_done)
 fig, axs = plt.subplots(1, num_agent+1, figsize=(15,3))
 for i in range(num_agent):
     axs[i].plot(range(len(action_list)), np.array(state_list)[:len(action_list),i], '-.', label = 'states')

@@ -505,18 +505,15 @@ class ValueNetwork(nn.Module):
 
         self.linear3.weight.data.uniform_(-init_w, init_w)
         self.linear3.bias.data.uniform_(-init_w, init_w)
-        # self.bn1 = nn.BatchNorm1d(hidden_dim)
-        # self.bn2 = nn.BatchNorm1d(hidden_dim)
-        # self.bn3 = nn.BatchNorm1d(1)
+        self.bn1 = nn.BatchNorm1d(hidden_dim)
+        self.bn2 = nn.BatchNorm1d(hidden_dim)
+        self.bn3 = nn.BatchNorm1d(1)
 
     def forward(self, state, action):
         x = torch.cat((state, action), dim=1)
         x = F.relu(self.linear1(x))
-        # x = self.bn1(x)
         x = F.relu(self.linear2(x))
-        # x = self.bn2(x)
         x = self.linear3(x)
-        # x = self.bn3(x)
         return x
 
 class ReplayBuffer:

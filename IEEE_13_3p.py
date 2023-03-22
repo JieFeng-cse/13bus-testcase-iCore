@@ -20,7 +20,7 @@ from dssdata.pfmodes import run_static_pf
 from dssdata.tools import voltages
 from dssdata.pfmodes import cfg_tspf
 
-DSS_PATH = "/home/jason/Documents/research/stable-rl-three-phase/opendss_model/13bus/IEEE13Nodeckt.dss"
+DSS_PATH = "/home/jason/Documents/research/stable-rl-three-phase-derconnect/opendss_model/13bus-icore/IEEE13Node_iCOREV2.dss"
 
 def create_13bus3p(injection_bus):
     #build the generators
@@ -74,7 +74,6 @@ class IEEE13bus3p(gym.Env):
         #safe-ddpg reward
         reward = float(-1.0*LA.norm(p_action,1)-1000*LA.norm(np.clip(self.state-self.vmax, 0, np.inf),2)**2
                        -1000*LA.norm(np.clip(self.vmin-self.state, 0, np.inf),2)**2)
-        #why in this part originally it is not square?
         # local reward
         agent_num = len(self.injection_bus)
         reward_sep = np.zeros(agent_num, )
@@ -89,14 +88,8 @@ class IEEE13bus3p(gym.Env):
                     reward_sep[i] +=float(-50.0*LA.norm([p_action[i,j]],1)-1000*LA.norm(np.clip([self.state[i,j]-self.vmax], 0, np.inf),2)**2
                     -1000*LA.norm(np.clip([self.vmin-self.state[i,j]], 0, np.inf),2)**2)  
                            
-        #safe: -1.0*LA.norm(p_action[i],1) 
-        # reward_sep += reward    
-        # state-transition dynamics
-        # rate=0.7
-        # action = np.clip(action,-5*rate,5*rate)
         action = action * 100 #from MVar to kVar
         for i, idx in enumerate(self.injection_bus_str):
-            # print(idx+' '+self.injection_bus[idx])
             for phase in self.injection_bus[idx]:
                 if phase == 'a':
                     self.network.run_command(f"Generator.bus{idx}_1.kvar={action[i,0]}") 
@@ -110,66 +103,8 @@ class IEEE13bus3p(gym.Env):
         
         if(np.min(self.state) > 0.95 and np.max(self.state)< 1.05):
             done = True
-            # reward_sep += 100
-        # if done:
-        #     print('successful!')
         return self.state, reward, reward_sep, done
-    
-    def reset_3b(self, seed=1): #only 3 buses are included
-        np.random.seed(seed)
-        senario = np.random.choice([0,1])
-        # senario = 1
-        self.network.init_sys()
-        if(senario == 0):
-            # Low voltage
-            bus675_a_kw = -100*np.random.uniform(2, 13)
-            bus675_b_kw = -100*np.random.uniform(3, 20)
-            bus675_c_kw = -100*np.random.uniform(2, 13)
-            self.network.run_command(f"Generator.bus675_1.kw={bus675_a_kw}") 
-            self.network.run_command(f"Generator.bus675_2.kw={bus675_b_kw}") 
-            self.network.run_command(f"Generator.bus675_3.kw={bus675_c_kw}") 
 
-            bus633_a_kw = -100*np.random.uniform(6, 28)
-            bus633_b_kw = -100*np.random.uniform(5, 25)
-            bus633_c_kw = -100*np.random.uniform(3, 25)
-            self.network.run_command(f"Generator.bus633_1.kw={bus633_a_kw}") 
-            self.network.run_command(f"Generator.bus633_2.kw={bus633_b_kw}") 
-            self.network.run_command(f"Generator.bus633_3.kw={bus633_c_kw}") 
-
-            bus680_a_kw = -100*np.random.uniform(1.5, 5)
-            bus680_b_kw = -100*np.random.uniform(1.5, 8)
-            bus680_c_kw = -100*np.random.uniform(1.5, 8)
-            self.network.run_command(f"Generator.bus680_1.kw={bus680_a_kw}") 
-            self.network.run_command(f"Generator.bus680_2.kw={bus680_b_kw}") 
-            self.network.run_command(f"Generator.bus680_3.kw={bus680_c_kw}") 
-        if(senario == 1):
-            # High voltage
-            bus675_a_kw = 100*np.random.uniform(4, 20)
-            bus675_b_kw = 100*np.random.uniform(3, 20)
-            bus675_c_kw = 100*np.random.uniform(2, 20)
-            self.network.run_command(f"Generator.bus675_1.kw={bus675_a_kw}") 
-            self.network.run_command(f"Generator.bus675_2.kw={bus675_b_kw}") 
-            self.network.run_command(f"Generator.bus675_3.kw={bus675_c_kw}") 
-
-            bus633_a_kw = 100*np.random.uniform(5, 20)
-            bus633_b_kw = 100*np.random.uniform(8, 18)
-            bus633_c_kw = 100*np.random.uniform(8, 15)
-            self.network.run_command(f"Generator.bus633_1.kw={bus633_a_kw}") 
-            self.network.run_command(f"Generator.bus633_2.kw={bus633_b_kw}") 
-            self.network.run_command(f"Generator.bus633_3.kw={bus633_c_kw}") 
-
-            bus680_a_kw = 100*np.random.uniform(1.5, 5)
-            bus680_b_kw = 100*np.random.uniform(4, 7)
-            bus680_c_kw = 100*np.random.uniform(3, 10)
-            self.network.run_command(f"Generator.bus680_1.kw={bus680_a_kw}") 
-            self.network.run_command(f"Generator.bus680_2.kw={bus680_b_kw}") 
-            self.network.run_command(f"Generator.bus680_3.kw={bus680_c_kw}") 
-        self.network.dss.Solution.Number(1)
-        self.network.dss.Solution.Solve()      
-
-        self.state=self.get_state()
-        return self.state
-    
     def reset(self, seed=1): #sample different initial volateg conditions during training
         np.random.seed(seed)
         senario = np.random.choice([0,1])
@@ -177,9 +112,9 @@ class IEEE13bus3p(gym.Env):
         self.network.init_sys()
         if(senario == 0):
             # Low voltage
-            bus_a_kw = -100*np.random.uniform(2, 4.5)
-            bus_b_kw = -100*np.random.uniform(3, 5)
-            bus_c_kw = -100*np.random.uniform(2, 4)
+            bus_a_kw = -100*np.random.uniform(1, 3)
+            bus_b_kw = -100*np.random.uniform(1, 3)
+            bus_c_kw = -100*np.random.uniform(1, 3)
             for idx in self.injection_bus_str:
                 for phase in self.injection_bus[idx]:
                     if phase == 'a':
@@ -190,8 +125,8 @@ class IEEE13bus3p(gym.Env):
                         self.network.run_command(f"Generator.bus{idx}_3.kw={bus_c_kw}") 
         if(senario == 1):
             # High voltage
-            bus_a_kw = 100*np.random.uniform(3, 5.5)
-            bus_b_kw = 100*np.random.uniform(4.5, 5)
+            bus_a_kw = 100*np.random.uniform(3, 5)
+            bus_b_kw = 100*np.random.uniform(4, 5)
             bus_c_kw = 100*np.random.uniform(4, 5)
             for idx in self.injection_bus_str:
                 for phase in self.injection_bus[idx]:
@@ -210,7 +145,7 @@ class IEEE13bus3p(gym.Env):
 if __name__ == "__main__":
     # injection_bus = np.array([675,633,680])
     # bus 670 is actually a concentrated point load of the distributed load on line 632 to 671 located at 1/3 the distance from node 632
-    injection_bus = np.array([633,634,671,645,646,692,675,611,652,632,680,684])
+    injection_bus = np.array([633,671,645,646,692,675,652,632,680,684]) # deleted 634, 611
     net, injection_bus_dict = create_13bus3p(injection_bus)    
     env = IEEE13bus3p(net, injection_bus_dict)
     state_list = []
@@ -226,16 +161,3 @@ if __name__ == "__main__":
             # axs[j,i].hist(state_list[:,j,i],[1.0,1.05,1.10,1.15,1.20,1.25])
     plt.tight_layout()
     plt.show()
-    # state = env.reset(0)
-    # for i in range(40):
-    #     action = np.zeros((len(injection_bus),3))
-    #     action += 0.01*i
-    #     state, _,_,_ = env.step_Preward(action,action)
-    #     state_list.append(state)
-    #     # print(env.network.run_command('? Load.675a.kw'))
-    # state_list = np.array(state_list)
-    # fig, axs = plt.subplots(len(injection_bus), 3, figsize=(9,9))
-    # for i in range(3):
-    #     for j in range(len(injection_bus)):
-    #         axs[j,i].plot(range(40),state_list[:,j,i])
-    # plt.show()
